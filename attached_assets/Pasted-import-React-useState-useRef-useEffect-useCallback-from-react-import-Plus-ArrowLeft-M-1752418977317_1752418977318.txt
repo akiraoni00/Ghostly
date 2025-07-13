@@ -1,0 +1,782 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square } from 'lucide-react';
+
+const MilanoteClone = () => {
+  const [boards, setBoards] = useState({
+    home: {
+      id: 'home',
+      name: 'Home',
+      items: [],
+      image: null,
+      parent: null
+    }
+  });
+  
+  const [currentBoard, setCurrentBoard] = useState('home');
+  const [selectedTool, setSelectedTool] = useState('select');
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [editingItem, setEditingItem] = useState(null);
+  const [boardHierarchy, setBoardHierarchy] = useState(['home']);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [pendingImagePosition, setPendingImagePosition] = useState(null);
+  
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const boardImageInputRef = useRef(null);
+  const [selectedBoardForImage, setSelectedBoardForImage] = useState(null);
+
+  // Save state to history for undo functionality
+  const saveToHistory = useCallback(() => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(JSON.parse(JSON.stringify(boards)));
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [boards, history, historyIndex]);
+
+  // Undo functionality
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const previousState = history[historyIndex - 1];
+      setBoards(previousState);
+      setHistoryIndex(historyIndex - 1);
+    }
+  }, [history, historyIndex]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo]);
+
+  // Initialize history
+  useEffect(() => {
+    if (history.length === 0) {
+      setHistory([JSON.parse(JSON.stringify(boards))]);
+      setHistoryIndex(0);
+    }
+  }, []);
+
+  // Create new item based on selected tool
+  const createItem = useCallback((x, y, type = selectedTool) => {
+    // Convert screen coordinates to canvas coordinates considering zoom and pan
+    const canvasX = (x - pan.x) / zoom;
+    const canvasY = (y - pan.y) / zoom;
+    
+    const id = `${type}_${Date.now()}`;
+    let newItem;
+    
+    switch (type) {
+      case 'board':
+        const boardId = `board_${Date.now()}`;
+        setBoards(prev => ({
+          ...prev,
+          [boardId]: {
+            id: boardId,
+            name: 'New Board',
+            items: [],
+            image: null,
+            parent: currentBoard
+          }
+        }));
+        newItem = {
+          id,
+          type: 'board',
+          x: canvasX,
+          y: canvasY,
+          width: 200,
+          height: 200,
+          boardId,
+          name: 'New Board',
+          image: null
+        };
+        break;
+      case 'note':
+        newItem = {
+          id,
+          type: 'note',
+          x: canvasX,
+          y: canvasY,
+          width: 250,
+          height: 150,
+          content: 'Click to edit...',
+          backgroundColor: '#f5f5dc'
+        };
+        break;
+      case 'image':
+        setPendingImagePosition({ x: canvasX, y: canvasY });
+        fileInputRef.current?.click();
+        setSelectedTool('select');
+        return;
+      default:
+        return;
+    }
+    
+    setBoards(prev => ({
+      ...prev,
+      [currentBoard]: {
+        ...prev[currentBoard],
+        items: [...prev[currentBoard].items, newItem]
+      }
+    }));
+    
+    setSelectedTool('select');
+    saveToHistory();
+  }, [selectedTool, currentBoard, saveToHistory, zoom, pan]);
+
+  // Handle line drawing
+  const handleLineDrawing = useCallback((e) => {
+    if (selectedTool !== 'line') return;
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    
+    const canvasStartX = (startX - pan.x) / zoom;
+    const canvasStartY = (startY - pan.y) / zoom;
+    
+    const handleMouseMove = (moveEvent) => {
+      const endX = moveEvent.clientX - rect.left;
+      const endY = moveEvent.clientY - rect.top;
+      
+      const canvasEndX = (endX - pan.x) / zoom;
+      const canvasEndY = (endY - pan.y) / zoom;
+    };
+    
+    const handleMouseUp = (upEvent) => {
+      const endX = upEvent.clientX - rect.left;
+      const endY = upEvent.clientY - rect.top;
+      
+      const canvasEndX = (endX - pan.x) / zoom;
+      const canvasEndY = (endY - pan.y) / zoom;
+      
+      const newLine = {
+        id: `line_${Date.now()}`,
+        type: 'line',
+        x: Math.min(canvasStartX, canvasEndX),
+        y: Math.min(canvasStartY, canvasEndY),
+        width: Math.abs(canvasEndX - canvasStartX),
+        height: Math.abs(canvasEndY - canvasStartY),
+        startX: canvasStartX,
+        startY: canvasStartY,
+        endX: canvasEndX,
+        endY: canvasEndY,
+        color: '#f8f8ff',
+        strokeWidth: 2
+      };
+      
+      setBoards(prev => ({
+        ...prev,
+        [currentBoard]: {
+          ...prev[currentBoard],
+          items: [...prev[currentBoard].items, newLine]
+        }
+      }));
+      
+      setSelectedTool('select');
+      saveToHistory();
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [selectedTool, currentBoard, saveToHistory, zoom, pan]);
+
+  // Handle canvas click
+  const handleCanvasClick = useCallback((e) => {
+    if (selectedTool === 'select') return;
+    if (selectedTool === 'line') {
+      handleLineDrawing(e);
+      return;
+    }
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    createItem(x, y);
+  }, [selectedTool, createItem, handleLineDrawing]);
+
+  // Handle mouse down for dragging and panning
+  const handleMouseDown = useCallback((e, item = null) => {
+    if (item) {
+      e.stopPropagation();
+      
+      if (e.button === 2) return;
+      
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const canvasX = (x - pan.x) / zoom;
+      const canvasY = (y - pan.y) / zoom;
+      
+      setDragOffset({ x: canvasX - item.x, y: canvasY - item.y });
+      setDraggedItem(item);
+      setIsDragging(true);
+      setContextMenu(null);
+    } else {
+      if (e.button === 0 && selectedTool === 'select') {
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      }
+    }
+  }, [zoom, pan, selectedTool]);
+
+  // Handle mouse move for dragging and panning
+  const handleMouseMove = useCallback((e) => {
+    if (isDragging && draggedItem) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const canvasX = (x - pan.x) / zoom - dragOffset.x;
+      const canvasY = (y - pan.y) / zoom - dragOffset.y;
+      
+      setBoards(prev => ({
+        ...prev,
+        [currentBoard]: {
+          ...prev[currentBoard],
+          items: prev[currentBoard].items.map(item =>
+            item.id === draggedItem.id ? { ...item, x: canvasX, y: canvasY } : item
+          )
+        }
+      }));
+    } else if (isPanning) {
+      setPan({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y
+      });
+    }
+  }, [isDragging, draggedItem, dragOffset, currentBoard, isPanning, panStart, zoom, pan]);
+
+  // Handle mouse up for dragging and panning
+  const handleMouseUp = useCallback(() => {
+    if (isDragging) {
+      setIsDragging(false);
+      setDraggedItem(null);
+      saveToHistory();
+    }
+    if (isPanning) {
+      setIsPanning(false);
+    }
+  }, [isDragging, isPanning, saveToHistory]);
+
+  // Handle mouse wheel for zooming
+  const handleWheel = useCallback((e) => {
+    e.preventDefault();
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newZoom = Math.min(Math.max(zoom * delta, 0.1), 5);
+    
+    const newPan = {
+      x: mouseX - (mouseX - pan.x) * (newZoom / zoom),
+      y: mouseY - (mouseY - pan.y) * (newZoom / zoom)
+    };
+    
+    setZoom(newZoom);
+    setPan(newPan);
+  }, [zoom, pan]);
+
+  // Handle right click context menu
+  const handleContextMenu = useCallback((e, item) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      item
+    });
+  }, []);
+
+  // Delete item
+  const deleteItem = useCallback((itemId) => {
+    setBoards(prev => {
+      const newBoards = { ...prev };
+      const item = prev[currentBoard].items.find(i => i.id === itemId);
+      
+      if (item?.type === 'board') {
+        delete newBoards[item.boardId];
+      }
+      
+      newBoards[currentBoard] = {
+        ...prev[currentBoard],
+        items: prev[currentBoard].items.filter(i => i.id !== itemId)
+      };
+      
+      return newBoards;
+    });
+    setContextMenu(null);
+    saveToHistory();
+  }, [currentBoard, saveToHistory]);
+
+  // Handle double click on board
+  const handleBoardDoubleClick = useCallback((boardItem) => {
+    setCurrentBoard(boardItem.boardId);
+    setBoardHierarchy(prev => [...prev, boardItem.boardId]);
+  }, []);
+
+  // Navigate to board
+  const navigateToBoard = useCallback((boardId, index) => {
+    setCurrentBoard(boardId);
+    setBoardHierarchy(prev => prev.slice(0, index + 1));
+  }, []);
+
+  // Handle file upload with aspect ratio preservation - FIXED
+  const handleFileUpload = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingImagePosition) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 200;
+        const maxHeight = 200;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = width * ratio;
+          height = height * ratio;
+        }
+        
+        const newItem = {
+          id: `image_${Date.now()}`,
+          type: 'image',
+          x: pendingImagePosition.x,
+          y: pendingImagePosition.y,
+          width: width,
+          height: height,
+          src: event.target?.result
+        };
+        
+        setBoards(prev => ({
+          ...prev,
+          [currentBoard]: {
+            ...prev[currentBoard],
+            items: [...prev[currentBoard].items, newItem]
+          }
+        }));
+        
+        setPendingImagePosition(null);
+        saveToHistory();
+      };
+      img.src = event.target?.result;
+    };
+    reader.readAsDataURL(file);
+    
+    e.target.value = '';
+  }, [currentBoard, saveToHistory, pendingImagePosition]);
+
+  // Handle board image upload
+  const handleBoardImageUpload = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedBoardForImage) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setBoards(prev => ({
+        ...prev,
+        [selectedBoardForImage.boardId]: {
+          ...prev[selectedBoardForImage.boardId],
+          image: event.target?.result
+        },
+        [currentBoard]: {
+          ...prev[currentBoard],
+          items: prev[currentBoard].items.map(item =>
+            item.id === selectedBoardForImage.id
+              ? { ...item, image: event.target?.result }
+              : item
+          )
+        }
+      }));
+      saveToHistory();
+    };
+    reader.readAsDataURL(file);
+    setSelectedBoardForImage(null);
+    
+    e.target.value = '';
+  }, [selectedBoardForImage, currentBoard, saveToHistory]);
+
+  // Handle item editing with auto-resize for notes
+  const handleItemEdit = useCallback((item, newValue) => {
+    setBoards(prev => ({
+      ...prev,
+      [currentBoard]: {
+        ...prev[currentBoard],
+        items: prev[currentBoard].items.map(i => {
+          if (i.id === item.id) {
+            const updatedItem = { ...i, [item.type === 'note' ? 'content' : 'name']: newValue };
+            // Auto-resize note based on content
+            if (item.type === 'note' && newValue) {
+              const lines = newValue.split('\n').length;
+              const minHeight = 60;
+              const lineHeight = 20;
+              const padding = 24;
+              updatedItem.height = Math.max(minHeight, lines * lineHeight + padding);
+            }
+            return updatedItem;
+          }
+          return i;
+        })
+      }
+    }));
+    
+    if (item.type === 'board') {
+      setBoards(prev => ({
+        ...prev,
+        [item.boardId]: {
+          ...prev[item.boardId],
+          name: newValue
+        }
+      }));
+    }
+    
+    setEditingItem(null);
+    saveToHistory();
+  }, [currentBoard, saveToHistory]);
+
+  // Set board image
+  const setBoardImage = useCallback((boardItem) => {
+    setSelectedBoardForImage(boardItem);
+    boardImageInputRef.current?.click();
+  }, []);
+
+  // Tool components
+  const tools = [
+    { id: 'select', icon: Square, label: 'Select' },
+    { id: 'note', icon: FileText, label: 'Note' },
+    { id: 'board', icon: Square, label: 'Board' },
+    { id: 'image', icon: Image, label: 'Add Image' },
+    { id: 'line', icon: Minus, label: 'Line' }
+  ];
+
+  // Event listeners
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('wheel', handleWheel);
+    
+    return () => {
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleMouseMove, handleMouseUp, handleWheel]);
+
+  // Close context menu on click
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, []);
+
+  const currentBoardData = boards[currentBoard];
+
+  return (
+    <div className="w-full h-screen bg-black flex">
+      {/* Sidebar - Updated to lighter shade */}
+      <div className="w-16 bg-gray-900 flex flex-col items-center py-4 space-y-4">
+        {tools.map(({ id, icon: Icon, label }) => (
+          <button
+            key={id}
+            onClick={() => setSelectedTool(id)}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+              selectedTool === id
+                ? 'bg-black text-white'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+            title={label}
+          >
+            <Icon size={20} />
+          </button>
+        ))}
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Bar - Updated to lighter shade */}
+        <div className="h-12 bg-gray-900 flex items-center px-4 space-x-2">
+          <div className="flex items-center space-x-2">
+            {boardHierarchy.map((boardId, index) => (
+              <React.Fragment key={boardId}>
+                <button
+                  onClick={() => navigateToBoard(boardId, index)}
+                  className={`text-sm px-2 py-1 rounded transition-colors ${
+                    boardId === currentBoard
+                      ? 'text-white bg-gray-700'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  {boards[boardId]?.name || 'Home'}
+                </button>
+                {index < boardHierarchy.length - 1 && (
+                  <span className="text-gray-600">{'>'}</span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+          
+          <div className="ml-auto text-gray-400 text-sm">
+            Zoom: {Math.round(zoom * 100)}%
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div className="flex-1 relative overflow-hidden">
+          <div
+            ref={canvasRef}
+            className="w-full h-full bg-black"
+            style={{
+              cursor: selectedTool === 'select' && !isDragging ? (isPanning ? 'grabbing' : 'grab') 
+                     : selectedTool === 'line' ? 'crosshair' 
+                     : selectedTool !== 'select' ? 'crosshair' 
+                     : 'default'
+            }}
+            onClick={handleCanvasClick}
+            onMouseDown={handleMouseDown}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {/* Grid pattern */}
+            <div 
+              className="absolute inset-0 opacity-10 pointer-events-none"
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: '0 0'
+              }}
+            >
+              <div className="w-full h-full" style={{
+                backgroundImage: `
+                  linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+                `,
+                backgroundSize: '20px 20px'
+              }} />
+            </div>
+            
+            {/* Items container */}
+            <div
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: '0 0'
+              }}
+            >
+              {currentBoardData?.items.map((item) => (
+                <div key={item.id}>
+                  {/* Main item */}
+                  <div
+                    className="absolute select-none"
+                    style={{
+                      left: item.x,
+                      top: item.y,
+                      width: item.width,
+                      height: item.height,
+                      transform: isDragging && draggedItem?.id === item.id ? 'scale(1.02)' : 'scale(1)',
+                      transition: isDragging && draggedItem?.id === item.id ? 'none' : 'transform 0.2s ease'
+                    }}
+                    onMouseDown={(e) => handleMouseDown(e, item)}
+                    onContextMenu={(e) => handleContextMenu(e, item)}
+                    onDoubleClick={() => item.type === 'board' && handleBoardDoubleClick(item)}
+                  >
+                    {item.type === 'board' && (
+                      <div className="w-full h-full bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors shadow-lg cursor-pointer overflow-hidden">
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <Square size={48} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {item.type === 'note' && (
+                      <div
+                        className="w-full h-full rounded-lg shadow-lg cursor-pointer hover:shadow-xl transition-shadow border-l-4 border-gray-400"
+                        style={{ backgroundColor: item.backgroundColor }}
+                      >
+                        {editingItem?.id === item.id ? (
+                          <textarea
+                            defaultValue={item.content}
+                            className="w-full h-full bg-transparent border-none outline-none resize-none p-4 text-gray-800 leading-relaxed"
+                            style={{ minHeight: '60px' }}
+                            onBlur={(e) => handleItemEdit(item, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && e.ctrlKey) {
+                                handleItemEdit(item, e.target.value);
+                              }
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <div 
+                            className="w-full h-full p-4 text-gray-800 leading-relaxed whitespace-pre-wrap"
+                            onClick={() => setEditingItem(item)}
+                          >
+                            {item.content}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {item.type === 'image' && (
+                      <div className="w-full h-full rounded-lg shadow-lg cursor-pointer overflow-hidden hover:shadow-xl transition-shadow">
+                        <img
+                          src={item.src}
+                          alt="Uploaded"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    )}
+                    
+                    {item.type === 'line' && (
+                      <svg
+                        className="absolute pointer-events-none"
+                        style={{
+                          left: 0,
+                          top: 0,
+                          width: item.width || 1,
+                          height: item.height || 1
+                        }}
+                        width={item.width || 1}
+                        height={item.height || 1}
+                      >
+                        <line
+                          x1={item.startX - item.x}
+                          y1={item.startY - item.y}
+                          x2={item.endX - item.x}
+                          y2={item.endY - item.y}
+                          stroke={item.color}
+                          strokeWidth={item.strokeWidth}
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  
+                  {/* Board name label - Made font bigger */}
+                  {item.type === 'board' && (
+                    <div
+                      className="absolute text-white text-base font-medium text-center"
+                      style={{
+                        left: item.x,
+                        top: item.y + item.height + 8,
+                        width: item.width,
+                        pointerEvents: 'none'
+                      }}
+                    >
+                      {editingItem?.id === item.id ? (
+                        <input
+                          type="text"
+                          defaultValue={item.name}
+                          className="w-full bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-center text-base"
+                          style={{ pointerEvents: 'auto' }}
+                          onBlur={(e) => handleItemEdit(item, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleItemEdit(item, e.target.value);
+                            }
+                          }}
+                          autoFocus
+                        />
+                      ) : (
+                        <span>{item.name}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed bg-gray-800 rounded-lg shadow-lg py-2 z-50 min-w-32"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setEditingItem(contextMenu.item)}
+            className="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+          >
+            <Edit3 size={16} className="inline mr-2" />
+            Edit
+          </button>
+          {contextMenu.item.type === 'board' && (
+            <button
+              onClick={() => setBoardImage(contextMenu.item)}
+              className="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+            >
+              <Image size={16} className="inline mr-2" />
+              Set Image
+            </button>
+          )}
+          <button
+            onClick={() => deleteItem(contextMenu.item.id)}
+            className="w-full text-left px-4 py-2 text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Hidden file inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+      <input
+        ref={boardImageInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleBoardImageUpload}
+        className="hidden"
+      />
+    </div>
+  );
+};
+
+export default MilanoteClone;
