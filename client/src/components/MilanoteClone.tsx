@@ -464,7 +464,7 @@ const MilanoteClone = () => {
     reader.onload = (event) => {
       if (!event.target || !event.target.result) return;
       
-      const img = new Image();
+      const img = new window.Image();
       img.onload = () => {
         const maxWidth = 200;
         const maxHeight = 200;
