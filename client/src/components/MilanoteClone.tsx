@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, Headphones, MousePointer, ALargeSmall, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2 } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, ALargeSmall, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2 } from 'lucide-react';
 
 const MilanoteClone = () => {
   const [boards, setBoards] = useState({
@@ -111,7 +111,7 @@ const MilanoteClone = () => {
           x: canvasX,
           y: canvasY,
           width: 200,
-          height: 200,
+          height: 220,
           boardId,
           name: 'New Board',
           image: null
@@ -553,15 +553,11 @@ const MilanoteClone = () => {
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 h-12 bg-[#1a1a1a] border-b border-gray-800 z-50 flex items-center justify-between px-4">
         <div className="flex items-center space-x-4">
-          {/* Ghost Logo with Headphones */}
+          {/* Ghost Logo */}
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 text-[#f4c2c2]">
               <Ghost size={24} />
             </div>
-            <div className="w-6 h-6 text-[#f4c2c2]">
-              <Headphones size={20} />
-            </div>
-            <span className="text-lg font-semibold text-[#f4c2c2]">Ghostly</span>
           </div>
           
           {/* Breadcrumb Navigation */}
@@ -684,20 +680,22 @@ const MilanoteClone = () => {
                     onDoubleClick={() => item.type === 'board' && handleBoardDoubleClick(item)}
                   >
                     {item.type === 'board' && (
-                      <div className="w-full h-full bg-[#2d2d2d] rounded-xl hover:border-[#f4c2c2] hover:border-2 transition-colors shadow-2xl cursor-pointer overflow-hidden">
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-full h-full object-cover rounded-xl"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            <ALargeSmall size={48} />
-                          </div>
-                        )}
-                        <div className="absolute bottom-2 left-2 right-2">
-                          <h3 className="text-white font-medium text-base truncate">{item.name}</h3>
+                      <div className="w-full h-full cursor-pointer">
+                        <div className="w-full h-48 bg-[#2d2d2d] rounded-xl hover:border-[#f4c2c2] hover:border-2 transition-colors shadow-2xl overflow-hidden">
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-full h-full object-cover rounded-xl"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              <ALargeSmall size={48} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-2 text-center">
+                          <h3 className="text-white font-medium text-lg truncate">{item.name}</h3>
                         </div>
                       </div>
                     )}
