@@ -2,17 +2,24 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, ALargeSmall, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2 } from 'lucide-react';
 
 const MilanoteClone = () => {
-  const [boards, setBoards] = useState({
-    home: {
-      id: 'home',
-      name: 'Home',
-      items: [],
-      image: null,
-      parent: null
-    }
+  // Load initial state from localStorage or use default
+  const [boards, setBoards] = useState(() => {
+    const savedBoards = localStorage.getItem('ghostly-boards');
+    return savedBoards ? JSON.parse(savedBoards) : {
+      home: {
+        id: 'home',
+        name: 'Home',
+        items: [],
+        image: null,
+        parent: null
+      }
+    };
   });
   
-  const [currentBoard, setCurrentBoard] = useState('home');
+  const [currentBoard, setCurrentBoard] = useState(() => {
+    const savedCurrentBoard = localStorage.getItem('ghostly-currentBoard');
+    return savedCurrentBoard ? JSON.parse(savedCurrentBoard) : 'home';
+  });
   const [selectedTool, setSelectedTool] = useState('select');
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -21,9 +28,18 @@ const MilanoteClone = () => {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [editingItem, setEditingItem] = useState(null);
-  const [boardHierarchy, setBoardHierarchy] = useState(['home']);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [boardHierarchy, setBoardHierarchy] = useState(() => {
+    const savedHierarchy = localStorage.getItem('ghostly-boardHierarchy');
+    return savedHierarchy ? JSON.parse(savedHierarchy) : ['home'];
+  });
+  const [zoom, setZoom] = useState(() => {
+    const savedZoom = localStorage.getItem('ghostly-zoom');
+    return savedZoom ? JSON.parse(savedZoom) : 1;
+  });
+  const [pan, setPan] = useState(() => {
+    const savedPan = localStorage.getItem('ghostly-pan');
+    return savedPan ? JSON.parse(savedPan) : { x: 0, y: 0 };
+  });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [pendingImagePosition, setPendingImagePosition] = useState(null);
@@ -82,6 +98,55 @@ const MilanoteClone = () => {
       setHistoryIndex(0);
     }
   }, []);
+
+  // Autosave functionality - save to localStorage whenever boards change
+  useEffect(() => {
+    const saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem('ghostly-boards', JSON.stringify(boards));
+      } catch (error) {
+        console.warn('Failed to save to localStorage:', error);
+      }
+    }, 500); // Debounce saves by 500ms to avoid excessive saving during rapid changes
+
+    return () => clearTimeout(saveTimer);
+  }, [boards]);
+
+  // Autosave current board
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-currentBoard', JSON.stringify(currentBoard));
+    } catch (error) {
+      console.warn('Failed to save currentBoard to localStorage:', error);
+    }
+  }, [currentBoard]);
+
+  // Autosave board hierarchy
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-boardHierarchy', JSON.stringify(boardHierarchy));
+    } catch (error) {
+      console.warn('Failed to save boardHierarchy to localStorage:', error);
+    }
+  }, [boardHierarchy]);
+
+  // Autosave zoom level
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-zoom', JSON.stringify(zoom));
+    } catch (error) {
+      console.warn('Failed to save zoom to localStorage:', error);
+    }
+  }, [zoom]);
+
+  // Autosave pan position
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-pan', JSON.stringify(pan));
+    } catch (error) {
+      console.warn('Failed to save pan to localStorage:', error);
+    }
+  }, [pan]);
 
   // Create new item based on selected tool
   const createItem = useCallback((x, y, type = selectedTool) => {
