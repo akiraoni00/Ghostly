@@ -462,6 +462,8 @@ const MilanoteClone = () => {
     
     const reader = new FileReader();
     reader.onload = (event) => {
+      if (!event.target || !event.target.result) return;
+      
       const img = new Image();
       img.onload = () => {
         const maxWidth = 200;
@@ -482,7 +484,7 @@ const MilanoteClone = () => {
           y: pendingImagePosition.y,
           width: width,
           height: height,
-          src: event.target?.result
+          src: event.target.result
         };
         
         setBoards(prev => ({
@@ -496,7 +498,7 @@ const MilanoteClone = () => {
         setPendingImagePosition(null);
         saveToHistory();
       };
-      img.src = event.target?.result;
+      img.src = event.target.result;
     };
     reader.readAsDataURL(file);
     
@@ -510,17 +512,19 @@ const MilanoteClone = () => {
     
     const reader = new FileReader();
     reader.onload = (event) => {
+      if (!event.target || !event.target.result) return;
+      
       setBoards(prev => ({
         ...prev,
         [selectedBoardForImage.boardId]: {
           ...prev[selectedBoardForImage.boardId],
-          image: event.target?.result
+          image: event.target.result
         },
         [currentBoard]: {
           ...prev[currentBoard],
           items: prev[currentBoard].items.map(item =>
             item.id === selectedBoardForImage.id
-              ? { ...item, image: event.target?.result }
+              ? { ...item, image: event.target.result }
               : item
           )
         }
@@ -535,37 +539,64 @@ const MilanoteClone = () => {
 
   // Handle item editing
   const handleItemEdit = useCallback((item, newValue) => {
-    setBoards(prev => ({
-      ...prev,
-      [currentBoard]: {
+    if (!item || !newValue) {
+      setEditingItem(null);
+      return;
+    }
+    
+    setBoards(prev => {
+      const newBoards = { ...prev };
+      
+      // Update the item in the current board
+      newBoards[currentBoard] = {
         ...prev[currentBoard],
         items: prev[currentBoard].items.map(i => {
           if (i.id === item.id) {
-            const updatedItem = { ...i, [item.type === 'note' ? 'content' : 'title']: newValue };
-            // Auto-resize note based on content
-            if (item.type === 'note' && newValue) {
-              const lines = newValue.split('\n').length;
-              const minHeight = 60;
-              const lineHeight = 20;
-              const padding = 24;
-              updatedItem.height = Math.max(minHeight, lines * lineHeight + padding);
+            let updatedItem = { ...i };
+            
+            // Handle different item types
+            switch (item.type) {
+              case 'note':
+                updatedItem.content = newValue;
+                // Auto-resize note based on content
+                if (newValue) {
+                  const lines = newValue.split('\n').length;
+                  const minHeight = 60;
+                  const lineHeight = 20;
+                  const padding = 24;
+                  updatedItem.height = Math.max(minHeight, lines * lineHeight + padding);
+                }
+                break;
+              case 'board':
+                updatedItem.name = newValue;
+                break;
+              case 'link':
+                updatedItem.title = newValue;
+                break;
+              case 'todo':
+                updatedItem.title = newValue;
+                break;
+              default:
+                updatedItem.title = newValue;
+                break;
             }
+            
             return updatedItem;
           }
           return i;
         })
-      }
-    }));
-    
-    if (item.type === 'board') {
-      setBoards(prev => ({
-        ...prev,
-        [item.boardId]: {
+      };
+      
+      // If it's a board item, also update the board data
+      if (item.type === 'board' && item.boardId) {
+        newBoards[item.boardId] = {
           ...prev[item.boardId],
           name: newValue
-        }
-      }));
-    }
+        };
+      }
+      
+      return newBoards;
+    });
     
     setEditingItem(null);
     saveToHistory();
@@ -760,7 +791,26 @@ const MilanoteClone = () => {
                           )}
                         </div>
                         <div className="mt-2 text-center">
-                          <h3 className="text-white font-medium text-lg truncate">{item.name}</h3>
+                          {editingItem?.id === item.id ? (
+                            <input
+                              type="text"
+                              defaultValue={item.name}
+                              className="bg-[#1a1a1a] text-white font-medium text-lg text-center border border-[#f4c2c2] rounded px-2 py-1 w-full outline-none"
+                              onBlur={(e) => handleItemEdit(item, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleItemEdit(item, e.target.value);
+                                }
+                                if (e.key === 'Escape') {
+                                  setEditingItem(null);
+                                }
+                              }}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <h3 className="text-white font-medium text-lg truncate">{item.name}</h3>
+                          )}
                         </div>
                       </div>
                     )}
@@ -833,8 +883,27 @@ const MilanoteClone = () => {
                           <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
                             <Link2 size={16} className="text-white" />
                           </div>
-                          <div>
-                            <h4 className="text-gray-800 font-medium text-sm">{item.title}</h4>
+                          <div className="flex-1">
+                            {editingItem?.id === item.id ? (
+                              <input
+                                type="text"
+                                defaultValue={item.title}
+                                className="text-gray-800 font-medium text-sm w-full bg-transparent border-b border-gray-400 outline-none"
+                                onBlur={(e) => handleItemEdit(item, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleItemEdit(item, e.target.value);
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setEditingItem(null);
+                                  }
+                                }}
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <h4 className="text-gray-800 font-medium text-sm">{item.title}</h4>
+                            )}
                             <p className="text-blue-600 text-xs truncate">{item.url}</p>
                           </div>
                         </div>
@@ -844,7 +913,26 @@ const MilanoteClone = () => {
                     {item.type === 'todo' && (
                       <div className="w-full h-full bg-white rounded-lg shadow-xl border border-gray-300 cursor-pointer">
                         <div className="p-4">
-                          <h4 className="text-gray-800 font-medium text-base mb-3">{item.title}</h4>
+                          {editingItem?.id === item.id ? (
+                            <input
+                              type="text"
+                              defaultValue={item.title}
+                              className="text-gray-800 font-medium text-base mb-3 w-full bg-transparent border-b border-gray-400 outline-none"
+                              onBlur={(e) => handleItemEdit(item, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleItemEdit(item, e.target.value);
+                                }
+                                if (e.key === 'Escape') {
+                                  setEditingItem(null);
+                                }
+                              }}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <h4 className="text-gray-800 font-medium text-base mb-3">{item.title}</h4>
+                          )}
                           <div className="space-y-2">
                             {item.tasks.map((task, index) => (
                               <div key={task.id} className="flex items-center space-x-2">
