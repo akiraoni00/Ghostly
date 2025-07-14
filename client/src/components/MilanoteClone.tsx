@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, ALargeSmall, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2 } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2 } from 'lucide-react';
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -43,11 +43,20 @@ const MilanoteClone = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [pendingImagePosition, setPendingImagePosition] = useState(null);
+  const [showNodeGraph, setShowNodeGraph] = useState(false);
+  const [openEditors, setOpenEditors] = useState([]);
+  const [tags, setTags] = useState(() => {
+    const savedTags = localStorage.getItem('ghostly-tags');
+    return savedTags ? JSON.parse(savedTags) : [];
+  });
+  const [selectedTags, setSelectedTags] = useState([]);
   
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const boardImageInputRef = useRef(null);
   const [selectedBoardForImage, setSelectedBoardForImage] = useState(null);
+  const [draggingEditor, setDraggingEditor] = useState(null);
+  const [editorDragOffset, setEditorDragOffset] = useState({ x: 0, y: 0 });
 
   // Save state to history for undo functionality
   const saveToHistory = useCallback(() => {
@@ -56,6 +65,19 @@ const MilanoteClone = () => {
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
   }, [boards, history, historyIndex]);
+
+  // Add new tag
+  const addTag = useCallback((tagName) => {
+    if (!tagName.trim() || tags.some(tag => tag.name === tagName.trim())) return;
+    
+    const newTag = {
+      id: `tag_${Date.now()}`,
+      name: tagName.trim(),
+      color: `hsl(${Math.floor(Math.random() * 360)}, 70%, 60%)`
+    };
+    
+    setTags(prev => [...prev, newTag]);
+  }, [tags]);
 
   // Undo functionality
   const undo = useCallback(() => {
@@ -148,6 +170,15 @@ const MilanoteClone = () => {
     }
   }, [pan]);
 
+  // Autosave tags
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-tags', JSON.stringify(tags));
+    } catch (error) {
+      console.warn('Failed to save tags to localStorage:', error);
+    }
+  }, [tags]);
+
   // Create new item based on selected tool
   const createItem = useCallback((x, y, type = selectedTool) => {
     // Convert screen coordinates to canvas coordinates considering zoom and pan
@@ -192,6 +223,20 @@ const MilanoteClone = () => {
           height: 150,
           content: 'Click to edit...',
           backgroundColor: '#f5f5dc'
+        };
+        break;
+      case 'textfile':
+        newItem = {
+          id,
+          type: 'textfile',
+          x: canvasX,
+          y: canvasY,
+          width: 200,
+          height: 140,
+          title: 'New Document',
+          content: '# New Document\n\nStart writing here...',
+          tags: selectedTags.slice(),
+          connections: []
         };
         break;
       case 'image':
@@ -307,6 +352,14 @@ const MilanoteClone = () => {
   // Handle canvas click
   const handleCanvasClick = useCallback((e) => {
     if (selectedTool === 'select') return;
+    if (selectedTool === 'tag') {
+      const tagName = prompt('Enter tag name:');
+      if (tagName) {
+        addTag(tagName);
+      }
+      setSelectedTool('select');
+      return;
+    }
     if (selectedTool === 'line') {
       handleLineDrawing(e);
       return;
@@ -319,7 +372,7 @@ const MilanoteClone = () => {
     const y = e.clientY - rect.top;
     
     createItem(x, y);
-  }, [selectedTool, createItem, handleLineDrawing]);
+  }, [selectedTool, createItem, handleLineDrawing, addTag]);
 
   // Handle mouse down for dragging and panning
   const handleMouseDown = useCallback((e, item = null) => {
@@ -608,15 +661,108 @@ const MilanoteClone = () => {
     boardImageInputRef.current?.click();
   }, []);
 
+  // Open text file in editor
+  const openTextFileEditor = useCallback((textFile) => {
+    const existingEditor = openEditors.find(editor => editor.fileId === textFile.id);
+    if (!existingEditor) {
+      const newEditor = {
+        id: `editor_${Date.now()}`,
+        fileId: textFile.id,
+        title: textFile.title,
+        content: textFile.content,
+        x: 100 + openEditors.length * 30,
+        y: 100 + openEditors.length * 30,
+        width: 600,
+        height: 400,
+        isMinimized: false
+      };
+      setOpenEditors(prev => [...prev, newEditor]);
+    }
+  }, [openEditors]);
+
+  // Close editor
+  const closeEditor = useCallback((editorId) => {
+    setOpenEditors(prev => prev.filter(editor => editor.id !== editorId));
+  }, []);
+
+  // Update text file content
+  const updateTextFileContent = useCallback((fileId, newContent) => {
+    setBoards(prev => ({
+      ...prev,
+      [currentBoard]: {
+        ...prev[currentBoard],
+        items: prev[currentBoard].items.map(item =>
+          item.id === fileId && item.type === 'textfile'
+            ? { ...item, content: newContent }
+            : item
+        )
+      }
+    }));
+    
+    // Update open editor
+    setOpenEditors(prev => prev.map(editor =>
+      editor.fileId === fileId
+        ? { ...editor, content: newContent }
+        : editor
+    ));
+    
+    saveToHistory();
+  }, [currentBoard, saveToHistory]);
+
+  // Handle editor dragging
+  const handleEditorMouseDown = useCallback((e, editorId) => {
+    const editor = openEditors.find(ed => ed.id === editorId);
+    if (!editor) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDraggingEditor(editorId);
+    setEditorDragOffset({
+      x: e.clientX - editor.x,
+      y: e.clientY - editor.y
+    });
+  }, [openEditors]);
+
+  const handleEditorMouseMove = useCallback((e) => {
+    if (!draggingEditor) return;
+    
+    const newX = e.clientX - editorDragOffset.x;
+    const newY = e.clientY - editorDragOffset.y;
+    
+    setOpenEditors(prev => prev.map(editor =>
+      editor.id === draggingEditor 
+        ? { ...editor, x: Math.max(0, newX), y: Math.max(0, newY) }
+        : editor
+    ));
+  }, [draggingEditor, editorDragOffset]);
+
+  const handleEditorMouseUp = useCallback(() => {
+    setDraggingEditor(null);
+  }, []);
+
+  // Editor drag event listeners
+  useEffect(() => {
+    if (draggingEditor) {
+      document.addEventListener('mousemove', handleEditorMouseMove);
+      document.addEventListener('mouseup', handleEditorMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleEditorMouseMove);
+        document.removeEventListener('mouseup', handleEditorMouseUp);
+      };
+    }
+  }, [draggingEditor, handleEditorMouseMove, handleEditorMouseUp]);
+
   // Tool components
   const tools = [
     { id: 'select', icon: MousePointer, label: 'Select' },
-    { id: 'board', icon: ALargeSmall, label: 'Board' },
+    { id: 'board', icon: Square, label: 'Board' },
+    { id: 'textfile', icon: FileText, label: 'Text File' },
     { id: 'image', icon: Image, label: 'Add Image' },
     { id: 'note', icon: StickyNote, label: 'Note' },
     { id: 'line', icon: Minus, label: 'Line' },
     { id: 'link', icon: Link2, label: 'Link' },
-    { id: 'todo', icon: CheckSquare, label: 'Todo List' }
+    { id: 'todo', icon: CheckSquare, label: 'Todo List' },
+    { id: 'tag', icon: Tag, label: 'Tags' }
   ];
 
   // Event listeners
@@ -679,6 +825,19 @@ const MilanoteClone = () => {
         </div>
         
         <div className="flex items-center space-x-4">
+          {/* Node Graph Toggle */}
+          <button
+            onClick={() => setShowNodeGraph(!showNodeGraph)}
+            className={`p-2 rounded transition-colors ${
+              showNodeGraph
+                ? 'bg-[#f4c2c2] text-black'
+                : 'text-gray-400 hover:text-white'
+            }`}
+            title="Node Graph"
+          >
+            <GitBranch size={16} />
+          </button>
+          
           {/* Zoom Controls */}
           <div className="flex items-center space-x-2 bg-[#2d2d2d] rounded-lg px-3 py-1">
             <button 
@@ -786,7 +945,7 @@ const MilanoteClone = () => {
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400">
-                              <ALargeSmall size={48} />
+                              <Square size={48} />
                             </div>
                           )}
                         </div>
@@ -840,6 +999,44 @@ const MilanoteClone = () => {
                             {item.content}
                           </div>
                         )}
+                      </div>
+                    )}
+                    
+                    {item.type === 'textfile' && (
+                      <div 
+                        className="w-full h-full bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg shadow-xl cursor-pointer hover:bg-[#2d2d2d] transition-colors"
+                        onDoubleClick={() => openTextFileEditor(item)}
+                      >
+                        <div className="p-3 h-full flex flex-col">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <FileText size={16} className="text-[#f4c2c2]" />
+                            <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
+                          </div>
+                          <div className="flex-1 overflow-hidden">
+                            <div className="text-gray-300 text-xs leading-relaxed line-clamp-4">
+                              {item.content.replace(/^#.*$/gm, '').slice(0, 100)}...
+                            </div>
+                          </div>
+                          {item.tags && item.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {item.tags.slice(0, 3).map(tagId => {
+                                const tag = tags.find(t => t.id === tagId);
+                                return tag ? (
+                                  <span 
+                                    key={tag.id} 
+                                    className="px-2 py-1 text-xs rounded-full text-black font-medium"
+                                    style={{ backgroundColor: tag.color }}
+                                  >
+                                    {tag.name}
+                                  </span>
+                                ) : null;
+                              })}
+                              {item.tags.length > 3 && (
+                                <span className="text-gray-400 text-xs">+{item.tags.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                     
@@ -1001,6 +1198,228 @@ const MilanoteClone = () => {
             <Trash2 size={16} />
             <span>Delete</span>
           </button>
+        </div>
+      )}
+
+      {/* Tag Selector */}
+      {selectedTool === 'textfile' && tags.length > 0 && (
+        <div className="fixed bottom-4 left-20 bg-[#1a1a1a] border border-gray-700 rounded-lg p-4 z-50 max-w-xs">
+          <h4 className="text-white text-sm mb-2">Select Tags:</h4>
+          <div className="flex flex-wrap gap-2">
+            {tags.map(tag => (
+              <button
+                key={tag.id}
+                onClick={() => {
+                  setSelectedTags(prev => 
+                    prev.includes(tag.id) 
+                      ? prev.filter(id => id !== tag.id)
+                      : [...prev, tag.id]
+                  );
+                }}
+                className={`px-2 py-1 text-xs rounded-full font-medium transition-colors ${
+                  selectedTags.includes(tag.id)
+                    ? 'text-black'
+                    : 'text-white bg-gray-600 hover:bg-gray-500'
+                }`}
+                style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
+              >
+                {tag.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Text File Editors */}
+      {openEditors.map(editor => (
+        <div
+          key={editor.id}
+          className="fixed bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg shadow-2xl z-40"
+          style={{
+            left: editor.x,
+            top: editor.y,
+            width: editor.width,
+            height: editor.height,
+            display: editor.isMinimized ? 'none' : 'block'
+          }}
+        >
+          {/* Editor Header */}
+          <div 
+            className="flex items-center justify-between p-3 border-b border-gray-700 bg-[#2d2d2d] rounded-t-lg cursor-move"
+            onMouseDown={(e) => handleEditorMouseDown(e, editor.id)}
+          >
+            <div className="flex items-center space-x-2">
+              <FileText size={14} className="text-[#f4c2c2]" />
+              <span className="text-white text-sm font-medium">{editor.title}</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => setOpenEditors(prev => prev.map(e => 
+                  e.id === editor.id ? { ...e, isMinimized: !e.isMinimized } : e
+                ))}
+                className="p-1 text-gray-400 hover:text-white transition-colors"
+              >
+                <Minimize2 size={14} />
+              </button>
+              <button
+                onClick={() => closeEditor(editor.id)}
+                className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+          
+          {/* Editor Content */}
+          <div className="p-4 overflow-hidden" style={{ height: 'calc(100% - 60px)' }}>
+            <textarea
+              value={editor.content}
+              onChange={(e) => {
+                const newContent = e.target.value;
+                setOpenEditors(prev => prev.map(ed => 
+                  ed.id === editor.id ? { ...ed, content: newContent } : ed
+                ));
+                updateTextFileContent(editor.fileId, newContent);
+              }}
+              className="w-full h-full bg-transparent text-white text-sm leading-relaxed outline-none resize-none font-mono"
+              placeholder="Start writing..."
+            />
+          </div>
+          
+          {/* Resize Handle */}
+          <div 
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize bg-[#f4c2c2] opacity-50 hover:opacity-100"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              const startX = e.clientX;
+              const startY = e.clientY;
+              const startWidth = editor.width;
+              const startHeight = editor.height;
+              
+              const handleResize = (moveEvent) => {
+                const newWidth = Math.max(300, startWidth + (moveEvent.clientX - startX));
+                const newHeight = Math.max(200, startHeight + (moveEvent.clientY - startY));
+                
+                setOpenEditors(prev => prev.map(ed =>
+                  ed.id === editor.id 
+                    ? { ...ed, width: newWidth, height: newHeight }
+                    : ed
+                ));
+              };
+              
+              const handleResizeEnd = () => {
+                document.removeEventListener('mousemove', handleResize);
+                document.removeEventListener('mouseup', handleResizeEnd);
+              };
+              
+              document.addEventListener('mousemove', handleResize);
+              document.addEventListener('mouseup', handleResizeEnd);
+            }}
+          />
+        </div>
+      ))}
+
+      {/* Node Graph */}
+      {showNodeGraph && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg w-4/5 h-4/5 flex flex-col">
+            {/* Node Graph Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <div className="flex items-center space-x-2">
+                <GitBranch size={20} className="text-[#f4c2c2]" />
+                <h2 className="text-white text-lg font-medium">Node Graph</h2>
+              </div>
+              <button
+                onClick={() => setShowNodeGraph(false)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            {/* Node Graph Content */}
+            <div className="flex-1 p-6 overflow-hidden">
+              <div className="w-full h-full bg-[#0d1117] rounded-lg border border-gray-800 relative overflow-hidden">
+                <svg className="w-full h-full">
+                  {/* Render connections between text files with shared tags */}
+                  {(() => {
+                    const textFiles = Object.values(boards).flatMap(board => 
+                      board.items?.filter(item => item.type === 'textfile') || []
+                    );
+                    const connections = [];
+                    
+                    for (let i = 0; i < textFiles.length; i++) {
+                      for (let j = i + 1; j < textFiles.length; j++) {
+                        const file1 = textFiles[i];
+                        const file2 = textFiles[j];
+                        const sharedTags = file1.tags?.filter(tag => file2.tags?.includes(tag)) || [];
+                        
+                        if (sharedTags.length > 0) {
+                          connections.push({
+                            file1: i,
+                            file2: j,
+                            strength: sharedTags.length
+                          });
+                        }
+                      }
+                    }
+                    
+                    return connections.map((conn, index) => {
+                      const x1 = 150 + (conn.file1 % 5) * 120;
+                      const y1 = 100 + Math.floor(conn.file1 / 5) * 80;
+                      const x2 = 150 + (conn.file2 % 5) * 120;
+                      const y2 = 100 + Math.floor(conn.file2 / 5) * 80;
+                      
+                      return (
+                        <line
+                          key={index}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke="#f4c2c2"
+                          strokeWidth={conn.strength}
+                          strokeOpacity={0.6}
+                        />
+                      );
+                    });
+                  })()}
+                  
+                  {/* Render text file nodes */}
+                  {Object.values(boards).flatMap(board => 
+                    board.items?.filter(item => item.type === 'textfile') || []
+                  ).map((file, index) => {
+                    const x = 150 + (index % 5) * 120;
+                    const y = 100 + Math.floor(index / 5) * 80;
+                    
+                    return (
+                      <g key={file.id}>
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r="20"
+                          fill="#f4c2c2"
+                          stroke="#1a1a1a"
+                          strokeWidth="2"
+                          className="cursor-pointer hover:fill-[#f5d2d2]"
+                          onClick={() => openTextFileEditor(file)}
+                        />
+                        <text
+                          x={x}
+                          y={y + 35}
+                          textAnchor="middle"
+                          className="text-white text-xs fill-current"
+                          style={{ fontSize: '10px' }}
+                        >
+                          {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

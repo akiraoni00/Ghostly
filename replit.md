@@ -1,8 +1,8 @@
-# Milanote Clone Application
+# Ghostly - Obsidian + Milanote Hybrid Application
 
 ## Overview
 
-This is a full-stack web application that replicates the functionality of Milanote, a visual project management and mood board tool. The application allows users to create boards, add various types of content items (notes, images, links), and organize them visually on a canvas with drag-and-drop functionality.
+This is a comprehensive note-taking and visual project management application that combines the best features of Obsidian and Milanote. The application allows users to create boards, add various types of content items (notes, text files, images, links), organize them visually on a canvas, and view connections between documents through an interactive node graph. Key features include resizable/draggable text file editors, tag-based organization, and visual knowledge mapping.
 
 ## User Preferences
 
@@ -30,7 +30,11 @@ Preferred communication style: Simple, everyday language.
 ### Key Components
 
 #### Frontend Components
-- **MilanoteClone**: Main application component handling board management, tool selection, and canvas interactions
+- **MilanoteClone**: Main application component handling board management, tool selection, canvas interactions, text file editing, and node graph visualization
+- **Text File System**: Full-featured text file creation with Markdown support, tag association, and inline editing
+- **Node Graph**: Interactive visualization showing connections between text files based on shared tags
+- **Floating Editors**: Draggable, resizable text file editors with minimize/close functionality
+- **Tag Management**: Color-coded tag system for organizing and connecting documents
 - **UI Components**: Complete shadcn/ui component library including buttons, dialogs, forms, and interactive elements
 - **Routing**: Simple routing setup with home page and 404 handling
 
@@ -44,10 +48,14 @@ Preferred communication style: Simple, everyday language.
 
 ### Client-Side Data Management
 1. **Board State**: Boards are managed in local React state with hierarchical structure
-2. **Tool Selection**: Various tools (select, note, image, etc.) for content creation
-3. **Drag and Drop**: Canvas-based interaction with zoom and pan capabilities
+2. **Tool Selection**: Various tools (select, board, text file, note, image, line, link, todo, tag) for content creation
+3. **Drag and Drop**: Canvas-based interaction with zoom and pan capabilities for all items
 4. **History Management**: Undo/redo functionality for user actions
 5. **File Handling**: Image upload and management for board content
+6. **Text File Management**: Full text editing with auto-save, tag association, and content preview
+7. **Editor State**: Multiple floating editors with position, size, and minimization state
+8. **Tag System**: Persistent tag storage with color coding and association tracking
+9. **Node Graph**: Dynamic connection visualization based on shared tags between documents
 
 ### Server-Side Data Flow
 1. **Request Processing**: Express middleware handles authentication, parsing, and logging
@@ -103,4 +111,20 @@ Preferred communication style: Simple, everyday language.
 5. **State Management**: React Query for server state, local React state for UI interactions
 6. **Development Experience**: Vite for fast development, comprehensive TypeScript support
 
-The application is designed to be scalable, maintainable, and developer-friendly while providing a rich user experience for visual project management.
+## Recent Changes (January 2025)
+
+### Major Feature Addition: Obsidian Integration
+- **Text Files**: Added full-featured text file creation and editing with Markdown support
+- **Node Graph**: Implemented interactive node graph showing document connections via shared tags
+- **Floating Editors**: Created draggable, resizable text editors with minimize/close functionality
+- **Tag System**: Implemented comprehensive tag management with color coding and visual organization
+- **Enhanced UI**: Updated toolbar with new tools and node graph toggle in top navigation
+- **Board Icon**: Changed board icon from letters to simple square for better visual clarity
+
+### Technical Improvements
+- **Editor Management**: Added complete state management for multiple open editors
+- **Drag & Resize**: Implemented editor window dragging and corner resize handles
+- **Tag Associations**: Built tag-based connection system for knowledge graph functionality
+- **Visual Enhancements**: Maintained consistent pink (#f4c2c2) theme throughout new features
+
+The application is now a comprehensive knowledge management and visual organization tool, combining the best aspects of Obsidian's text-based note-taking with Milanote's visual canvas approach.
