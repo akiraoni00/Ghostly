@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2 } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus } from 'lucide-react';
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -50,13 +50,27 @@ const MilanoteClone = () => {
     return savedTags ? JSON.parse(savedTags) : [];
   });
   const [selectedTags, setSelectedTags] = useState([]);
+  const [showTagPrompt, setShowTagPrompt] = useState(false);
+  const [nodeGraphSettings, setNodeGraphSettings] = useState({
+    nodeDistance: 120,
+    textSize: 10,
+    connectionOpacity: 0.6,
+    nodeSize: 20
+  });
+  const [showNodeGraphSettings, setShowNodeGraphSettings] = useState(false);
+  const [nodeGraphZoom, setNodeGraphZoom] = useState(1);
+  const [nodeGraphPan, setNodeGraphPan] = useState({ x: 0, y: 0 });
+  const [isNodeGraphPanning, setIsNodeGraphPanning] = useState(false);
+  const [nodeGraphPanStart, setNodeGraphPanStart] = useState({ x: 0, y: 0 });
   
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const boardImageInputRef = useRef(null);
+  const textFileInputRef = useRef(null);
   const [selectedBoardForImage, setSelectedBoardForImage] = useState(null);
   const [draggingEditor, setDraggingEditor] = useState(null);
   const [editorDragOffset, setEditorDragOffset] = useState({ x: 0, y: 0 });
+  const nodeGraphRef = useRef(null);
 
   // Save state to history for undo functionality
   const saveToHistory = useCallback(() => {
@@ -353,10 +367,21 @@ const MilanoteClone = () => {
   const handleCanvasClick = useCallback((e) => {
     if (selectedTool === 'select') return;
     if (selectedTool === 'tag') {
-      const tagName = prompt('Enter tag name:');
-      if (tagName) {
-        addTag(tagName);
-      }
+      setShowTagPrompt(true);
+      setSelectedTool('select');
+      return;
+    }
+    if (selectedTool === 'textfile-import') {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const canvasX = (x - pan.x) / zoom;
+      const canvasY = (y - pan.y) / zoom;
+      
+      setPendingImagePosition({ x: canvasX, y: canvasY });
+      textFileInputRef.current?.click();
       setSelectedTool('select');
       return;
     }
@@ -372,7 +397,7 @@ const MilanoteClone = () => {
     const y = e.clientY - rect.top;
     
     createItem(x, y);
-  }, [selectedTool, createItem, handleLineDrawing, addTag]);
+  }, [selectedTool, createItem, handleLineDrawing, addTag, zoom, pan]);
 
   // Handle mouse down for dragging and panning
   const handleMouseDown = useCallback((e, item = null) => {
@@ -558,6 +583,47 @@ const MilanoteClone = () => {
     e.target.value = '';
   }, [currentBoard, saveToHistory, pendingImagePosition]);
 
+  // Handle text file import
+  const handleTextFileImport = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingImagePosition) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (!event.target || !event.target.result) return;
+      
+      const content = event.target.result;
+      const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove file extension
+      
+      const newItem = {
+        id: `textfile_${Date.now()}`,
+        type: 'textfile',
+        x: pendingImagePosition.x,
+        y: pendingImagePosition.y,
+        width: 200,
+        height: 140,
+        title: fileName,
+        content: content,
+        tags: [],
+        connections: []
+      };
+      
+      setBoards(prev => ({
+        ...prev,
+        [currentBoard]: {
+          ...prev[currentBoard],
+          items: [...prev[currentBoard].items, newItem]
+        }
+      }));
+      
+      setPendingImagePosition(null);
+      saveToHistory();
+    };
+    reader.readAsText(file);
+    
+    e.target.value = '';
+  }, [currentBoard, saveToHistory, pendingImagePosition]);
+
   // Handle board image upload
   const handleBoardImageUpload = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -628,6 +694,15 @@ const MilanoteClone = () => {
                 break;
               case 'todo':
                 updatedItem.title = newValue;
+                break;
+              case 'textfile':
+                updatedItem.title = newValue;
+                // Update corresponding editor title if open
+                setOpenEditors(prev => prev.map(editor =>
+                  editor.fileId === item.id 
+                    ? { ...editor, title: newValue }
+                    : editor
+                ));
                 break;
               default:
                 updatedItem.title = newValue;
@@ -756,7 +831,8 @@ const MilanoteClone = () => {
   const tools = [
     { id: 'select', icon: MousePointer, label: 'Select' },
     { id: 'board', icon: Square, label: 'Board' },
-    { id: 'textfile', icon: FileText, label: 'Text File' },
+    { id: 'textfile', icon: FilePlus, label: 'New Text File' },
+    { id: 'textfile-import', icon: Upload, label: 'Import Text File' },
     { id: 'image', icon: Image, label: 'Add Image' },
     { id: 'note', icon: StickyNote, label: 'Note' },
     { id: 'line', icon: Minus, label: 'Line' },
@@ -1010,7 +1086,26 @@ const MilanoteClone = () => {
                         <div className="p-3 h-full flex flex-col">
                           <div className="flex items-center space-x-2 mb-2">
                             <FileText size={16} className="text-[#f4c2c2]" />
-                            <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
+                            {editingItem?.id === item.id ? (
+                              <input
+                                type="text"
+                                defaultValue={item.title}
+                                className="text-white font-medium text-sm bg-transparent border-b border-[#f4c2c2] outline-none flex-1"
+                                onBlur={(e) => handleItemEdit(item, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleItemEdit(item, e.target.value);
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setEditingItem(null);
+                                  }
+                                }}
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
+                            )}
                           </div>
                           <div className="flex-1 overflow-hidden">
                             <div className="text-gray-300 text-xs leading-relaxed line-clamp-4">
@@ -1076,32 +1171,78 @@ const MilanoteClone = () => {
 
                     {item.type === 'link' && (
                       <div className="w-full h-full bg-blue-50 rounded-lg shadow-xl border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors">
-                        <div className="p-3 flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                            <Link2 size={16} className="text-white" />
-                          </div>
-                          <div className="flex-1">
-                            {editingItem?.id === item.id ? (
-                              <input
-                                type="text"
-                                defaultValue={item.title}
-                                className="text-gray-800 font-medium text-sm w-full bg-transparent border-b border-gray-400 outline-none"
-                                onBlur={(e) => handleItemEdit(item, e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    handleItemEdit(item, e.target.value);
-                                  }
-                                  if (e.key === 'Escape') {
-                                    setEditingItem(null);
-                                  }
-                                }}
-                                autoFocus
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            ) : (
-                              <h4 className="text-gray-800 font-medium text-sm">{item.title}</h4>
-                            )}
-                            <p className="text-blue-600 text-xs truncate">{item.url}</p>
+                        <div className="p-3 flex flex-col space-y-2">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                              <Link2 size={16} className="text-white" />
+                            </div>
+                            <div className="flex-1">
+                              {editingItem?.id === item.id ? (
+                                <div className="space-y-1">
+                                  <input
+                                    type="text"
+                                    defaultValue={item.title}
+                                    className="text-gray-800 font-medium text-sm w-full bg-transparent border-b border-gray-400 outline-none"
+                                    onBlur={(e) => handleItemEdit(item, e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleItemEdit(item, e.target.value);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        setEditingItem(null);
+                                      }
+                                    }}
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                    placeholder="Link title"
+                                  />
+                                  <input
+                                    type="text"
+                                    defaultValue={item.url}
+                                    className="text-blue-600 text-xs w-full bg-transparent border-b border-blue-300 outline-none"
+                                    onBlur={(e) => {
+                                      setBoards(prev => ({
+                                        ...prev,
+                                        [currentBoard]: {
+                                          ...prev[currentBoard],
+                                          items: prev[currentBoard].items.map(i =>
+                                            i.id === item.id ? { ...i, url: e.target.value } : i
+                                          )
+                                        }
+                                      }));
+                                      setEditingItem(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        setBoards(prev => ({
+                                          ...prev,
+                                          [currentBoard]: {
+                                            ...prev[currentBoard],
+                                            items: prev[currentBoard].items.map(i =>
+                                              i.id === item.id ? { ...i, url: e.target.value } : i
+                                            )
+                                          }
+                                        }));
+                                        setEditingItem(null);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        setEditingItem(null);
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    placeholder="Enter URL"
+                                  />
+                                </div>
+                              ) : (
+                                <div>
+                                  <h4 className="text-gray-800 font-medium text-sm">{item.title}</h4>
+                                  <p className="text-blue-600 text-xs truncate cursor-pointer" onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(item.url, '_blank');
+                                  }}>{item.url}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1151,11 +1292,86 @@ const MilanoteClone = () => {
                                     }));
                                   }}
                                 />
-                                <span className={`text-sm ${task.completed ? 'text-gray-600 line-through' : 'text-gray-800'}`}>
-                                  {task.text}
-                                </span>
+                                {!task.completed ? (
+                                  <input
+                                    type="text"
+                                    value={task.text}
+                                    onChange={(e) => {
+                                      const updatedTasks = [...item.tasks];
+                                      updatedTasks[index].text = e.target.value;
+                                      setBoards(prev => ({
+                                        ...prev,
+                                        [currentBoard]: {
+                                          ...prev[currentBoard],
+                                          items: prev[currentBoard].items.map(i =>
+                                            i.id === item.id ? { ...i, tasks: updatedTasks } : i
+                                          )
+                                        }
+                                      }));
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && e.target.value.trim()) {
+                                        // Add new task
+                                        const updatedTasks = [...item.tasks, {
+                                          id: Date.now(),
+                                          text: '',
+                                          completed: false
+                                        }];
+                                        setBoards(prev => ({
+                                          ...prev,
+                                          [currentBoard]: {
+                                            ...prev[currentBoard],
+                                            items: prev[currentBoard].items.map(i =>
+                                              i.id === item.id ? { ...i, tasks: updatedTasks } : i
+                                            )
+                                          }
+                                        }));
+                                      } else if (e.key === 'Backspace' && e.target.value === '') {
+                                        // Remove empty task
+                                        const updatedTasks = item.tasks.filter((_, i) => i !== index);
+                                        setBoards(prev => ({
+                                          ...prev,
+                                          [currentBoard]: {
+                                            ...prev[currentBoard],
+                                            items: prev[currentBoard].items.map(i =>
+                                              i.id === item.id ? { ...i, tasks: updatedTasks } : i
+                                            )
+                                          }
+                                        }));
+                                      }
+                                    }}
+                                    className="text-sm text-gray-800 bg-transparent border-none outline-none flex-1"
+                                    placeholder="Enter task..."
+                                  />
+                                ) : (
+                                  <span className="text-sm text-gray-600 line-through flex-1">
+                                    {task.text}
+                                  </span>
+                                )}
                               </div>
                             ))}
+                            {/* Add new task button */}
+                            <button
+                              onClick={() => {
+                                const updatedTasks = [...item.tasks, {
+                                  id: Date.now(),
+                                  text: '',
+                                  completed: false
+                                }];
+                                setBoards(prev => ({
+                                  ...prev,
+                                  [currentBoard]: {
+                                    ...prev[currentBoard],
+                                    items: prev[currentBoard].items.map(i =>
+                                      i.id === item.id ? { ...i, tasks: updatedTasks } : i
+                                    )
+                                  }
+                                }));
+                              }}
+                              className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                            >
+                              + Add task
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1254,14 +1470,6 @@ const MilanoteClone = () => {
             </div>
             <div className="flex items-center space-x-1">
               <button
-                onClick={() => setOpenEditors(prev => prev.map(e => 
-                  e.id === editor.id ? { ...e, isMinimized: !e.isMinimized } : e
-                ))}
-                className="p-1 text-gray-400 hover:text-white transition-colors"
-              >
-                <Minimize2 size={14} />
-              </button>
-              <button
                 onClick={() => closeEditor(editor.id)}
                 className="p-1 text-gray-400 hover:text-red-400 transition-colors"
               >
@@ -1329,95 +1537,321 @@ const MilanoteClone = () => {
                 <GitBranch size={20} className="text-[#f4c2c2]" />
                 <h2 className="text-white text-lg font-medium">Node Graph</h2>
               </div>
-              <button
-                onClick={() => setShowNodeGraph(false)}
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <X size={16} />
-              </button>
+              <div className="flex items-center space-x-2">
+                {/* Node Graph Controls */}
+                <div className="flex items-center space-x-2 bg-[#2d2d2d] rounded-lg px-3 py-1">
+                  <button 
+                    onClick={() => setNodeGraphZoom(Math.max(nodeGraphZoom / 1.2, 0.1))}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ZoomOut size={14} />
+                  </button>
+                  <span className="text-sm font-mono">{Math.round(nodeGraphZoom * 100)}%</span>
+                  <button 
+                    onClick={() => setNodeGraphZoom(Math.min(nodeGraphZoom * 1.2, 5))}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ZoomIn size={14} />
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowNodeGraphSettings(!showNodeGraphSettings)}
+                  className={`p-2 rounded transition-colors ${
+                    showNodeGraphSettings ? 'bg-[#f4c2c2] text-black' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Settings size={16} />
+                </button>
+                <button
+                  onClick={() => setShowNodeGraph(false)}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
             
             {/* Node Graph Content */}
-            <div className="flex-1 p-6 overflow-hidden">
-              <div className="w-full h-full bg-[#0d1117] rounded-lg border border-gray-800 relative overflow-hidden">
-                <svg className="w-full h-full">
-                  {/* Render connections between text files with shared tags */}
-                  {(() => {
-                    const textFiles = Object.values(boards).flatMap(board => 
-                      board.items?.filter(item => item.type === 'textfile') || []
-                    );
-                    const connections = [];
-                    
-                    for (let i = 0; i < textFiles.length; i++) {
-                      for (let j = i + 1; j < textFiles.length; j++) {
-                        const file1 = textFiles[i];
-                        const file2 = textFiles[j];
-                        const sharedTags = file1.tags?.filter(tag => file2.tags?.includes(tag)) || [];
-                        
-                        if (sharedTags.length > 0) {
-                          connections.push({
-                            file1: i,
-                            file2: j,
-                            strength: sharedTags.length
-                          });
-                        }
-                      }
-                    }
-                    
-                    return connections.map((conn, index) => {
-                      const x1 = 150 + (conn.file1 % 5) * 120;
-                      const y1 = 100 + Math.floor(conn.file1 / 5) * 80;
-                      const x2 = 150 + (conn.file2 % 5) * 120;
-                      const y2 = 100 + Math.floor(conn.file2 / 5) * 80;
+            <div className="flex-1 p-6 overflow-hidden relative">
+              <div 
+                ref={nodeGraphRef}
+                className="w-full h-full bg-[#0d1117] rounded-lg border border-gray-800 relative overflow-hidden cursor-grab active:cursor-grabbing"
+                onMouseDown={(e) => {
+                  setIsNodeGraphPanning(true);
+                  setNodeGraphPanStart({
+                    x: e.clientX - nodeGraphPan.x,
+                    y: e.clientY - nodeGraphPan.y
+                  });
+                }}
+                onMouseMove={(e) => {
+                  if (isNodeGraphPanning) {
+                    setNodeGraphPan({
+                      x: e.clientX - nodeGraphPanStart.x,
+                      y: e.clientY - nodeGraphPanStart.y
+                    });
+                  }
+                }}
+                onMouseUp={() => setIsNodeGraphPanning(false)}
+                onMouseLeave={() => setIsNodeGraphPanning(false)}
+                onWheel={(e) => {
+                  e.preventDefault();
+                  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                  setNodeGraphZoom(prev => Math.max(0.1, Math.min(5, prev * delta)));
+                }}
+              >
+                <div
+                  style={{
+                    transform: `translate(${nodeGraphPan.x}px, ${nodeGraphPan.y}px) scale(${nodeGraphZoom})`,
+                    transformOrigin: '0 0'
+                  }}
+                >
+                  <svg className="w-full h-full" style={{ minWidth: '1000px', minHeight: '600px' }}>
+                    {/* Render tag nodes */}
+                    {tags.map((tag, tagIndex) => {
+                      const tagX = 200 + (tagIndex % 3) * nodeGraphSettings.nodeDistance * 2;
+                      const tagY = 150 + Math.floor(tagIndex / 3) * nodeGraphSettings.nodeDistance;
                       
                       return (
+                        <g key={`tag-${tag.id}`}>
+                          <rect
+                            x={tagX - 15}
+                            y={tagY - 10}
+                            width="30"
+                            height="20"
+                            rx="4"
+                            fill={tag.color}
+                            stroke="#1a1a1a"
+                            strokeWidth="2"
+                            className="cursor-pointer"
+                          />
+                          <text
+                            x={tagX}
+                            y={tagY + nodeGraphSettings.nodeSize + 15}
+                            textAnchor="middle"
+                            className="text-white fill-current"
+                            style={{ fontSize: `${nodeGraphSettings.textSize}px` }}
+                          >
+                            {tag.name.length > 8 ? tag.name.slice(0, 8) + '...' : tag.name}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    
+                    {/* Render connections between text files and tags */}
+                    {(() => {
+                      const textFiles = Object.values(boards).flatMap(board => 
+                        board.items?.filter(item => item.type === 'textfile') || []
+                      );
+                      const connections = [];
+                      
+                      // File to tag connections
+                      textFiles.forEach((file, fileIndex) => {
+                        const fileX = 100 + (fileIndex % 6) * nodeGraphSettings.nodeDistance;
+                        const fileY = 350 + Math.floor(fileIndex / 6) * nodeGraphSettings.nodeDistance;
+                        
+                        file.tags?.forEach(tagId => {
+                          const tagIndex = tags.findIndex(t => t.id === tagId);
+                          if (tagIndex !== -1) {
+                            const tagX = 200 + (tagIndex % 3) * nodeGraphSettings.nodeDistance * 2;
+                            const tagY = 150 + Math.floor(tagIndex / 3) * nodeGraphSettings.nodeDistance;
+                            
+                            connections.push({
+                              x1: fileX,
+                              y1: fileY,
+                              x2: tagX,
+                              y2: tagY,
+                              type: 'file-tag'
+                            });
+                          }
+                        });
+                      });
+                      
+                      // File to file connections via shared tags
+                      for (let i = 0; i < textFiles.length; i++) {
+                        for (let j = i + 1; j < textFiles.length; j++) {
+                          const file1 = textFiles[i];
+                          const file2 = textFiles[j];
+                          const sharedTags = file1.tags?.filter(tag => file2.tags?.includes(tag)) || [];
+                          
+                          if (sharedTags.length > 0) {
+                            const x1 = 100 + (i % 6) * nodeGraphSettings.nodeDistance;
+                            const y1 = 350 + Math.floor(i / 6) * nodeGraphSettings.nodeDistance;
+                            const x2 = 100 + (j % 6) * nodeGraphSettings.nodeDistance;
+                            const y2 = 350 + Math.floor(j / 6) * nodeGraphSettings.nodeDistance;
+                            
+                            connections.push({
+                              x1, y1, x2, y2,
+                              strength: sharedTags.length,
+                              type: 'file-file'
+                            });
+                          }
+                        }
+                      }
+                      
+                      return connections.map((conn, index) => (
                         <line
                           key={index}
-                          x1={x1}
-                          y1={y1}
-                          x2={x2}
-                          y2={y2}
-                          stroke="#f4c2c2"
-                          strokeWidth={conn.strength}
-                          strokeOpacity={0.6}
+                          x1={conn.x1}
+                          y1={conn.y1}
+                          x2={conn.x2}
+                          y2={conn.y2}
+                          stroke={conn.type === 'file-tag' ? '#fbbf24' : '#f4c2c2'}
+                          strokeWidth={conn.strength || 1}
+                          strokeOpacity={nodeGraphSettings.connectionOpacity}
                         />
-                      );
-                    });
-                  })()}
-                  
-                  {/* Render text file nodes */}
-                  {Object.values(boards).flatMap(board => 
-                    board.items?.filter(item => item.type === 'textfile') || []
-                  ).map((file, index) => {
-                    const x = 150 + (index % 5) * 120;
-                    const y = 100 + Math.floor(index / 5) * 80;
+                      ));
+                    })()}
                     
-                    return (
-                      <g key={file.id}>
-                        <circle
-                          cx={x}
-                          cy={y}
-                          r="20"
-                          fill="#f4c2c2"
-                          stroke="#1a1a1a"
-                          strokeWidth="2"
-                          className="cursor-pointer hover:fill-[#f5d2d2]"
-                          onClick={() => openTextFileEditor(file)}
-                        />
-                        <text
-                          x={x}
-                          y={y + 35}
-                          textAnchor="middle"
-                          className="text-white text-xs fill-current"
-                          style={{ fontSize: '10px' }}
-                        >
-                          {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
+                    {/* Render text file nodes */}
+                    {Object.values(boards).flatMap(board => 
+                      board.items?.filter(item => item.type === 'textfile') || []
+                    ).map((file, index) => {
+                      const x = 100 + (index % 6) * nodeGraphSettings.nodeDistance;
+                      const y = 350 + Math.floor(index / 6) * nodeGraphSettings.nodeDistance;
+                      
+                      // Find board containing this file
+                      const containingBoard = Object.values(boards).find(board => 
+                        board.items?.some(item => item.id === file.id)
+                      );
+                      
+                      return (
+                        <g key={file.id}>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r={nodeGraphSettings.nodeSize}
+                            fill="#f4c2c2"
+                            stroke="#1a1a1a"
+                            strokeWidth="2"
+                            className="cursor-pointer hover:fill-[#f5d2d2]"
+                            onDoubleClick={() => {
+                              // Navigate to board containing this file
+                              if (containingBoard) {
+                                setShowNodeGraph(false);
+                                const boardId = containingBoard.id;
+                                if (boardId !== currentBoard) {
+                                  setCurrentBoard(boardId);
+                                  setBoardHierarchy(prev => [...prev, boardId]);
+                                }
+                              }
+                            }}
+                          />
+                          <text
+                            x={x}
+                            y={y + nodeGraphSettings.nodeSize + 15}
+                            textAnchor="middle"
+                            className="text-white fill-current"
+                            style={{ fontSize: `${nodeGraphSettings.textSize}px` }}
+                          >
+                            {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
               </div>
+              
+              {/* Node Graph Settings Panel */}
+              {showNodeGraphSettings && (
+                <div className="absolute top-4 right-4 bg-[#1a1a1a] border border-gray-700 rounded-lg p-4 w-64 z-10">
+                  <h3 className="text-white font-medium mb-3">Graph Settings</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-1">Node Distance</label>
+                      <input
+                        type="range"
+                        min="80"
+                        max="200"
+                        value={nodeGraphSettings.nodeDistance}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeDistance: parseInt(e.target.value) }))}
+                        className="w-full"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.nodeDistance}px</span>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-1">Text Size</label>
+                      <input
+                        type="range"
+                        min="8"
+                        max="16"
+                        value={nodeGraphSettings.textSize}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, textSize: parseInt(e.target.value) }))}
+                        className="w-full"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.textSize}px</span>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-1">Connection Opacity</label>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1"
+                        step="0.1"
+                        value={nodeGraphSettings.connectionOpacity}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, connectionOpacity: parseFloat(e.target.value) }))}
+                        className="w-full"
+                      />
+                      <span className="text-gray-400 text-xs">{Math.round(nodeGraphSettings.connectionOpacity * 100)}%</span>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-1">Node Size</label>
+                      <input
+                        type="range"
+                        min="15"
+                        max="30"
+                        value={nodeGraphSettings.nodeSize}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeSize: parseInt(e.target.value) }))}
+                        className="w-full"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.nodeSize}px</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Prompt Modal */}
+      {showTagPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-96">
+            <h3 className="text-white text-lg font-medium mb-4">Create New Tag</h3>
+            <input
+              type="text"
+              placeholder="Enter tag name..."
+              className="w-full bg-[#2d2d2d] text-white border border-gray-600 rounded-lg px-3 py-2 outline-none focus:border-[#f4c2c2]"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                  addTag(e.target.value.trim());
+                  setShowTagPrompt(false);
+                } else if (e.key === 'Escape') {
+                  setShowTagPrompt(false);
+                }
+              }}
+            />
+            <div className="flex items-center justify-end space-x-2 mt-4">
+              <button
+                onClick={() => setShowTagPrompt(false)}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  const input = e.target.previousElementSibling.previousElementSibling;
+                  if (input.value.trim()) {
+                    addTag(input.value.trim());
+                    setShowTagPrompt(false);
+                  }
+                }}
+                className="px-4 py-2 bg-[#f4c2c2] text-black rounded-lg hover:bg-[#f5d2d2] transition-colors"
+              >
+                Create
+              </button>
             </div>
           </div>
         </div>
@@ -1436,6 +1870,13 @@ const MilanoteClone = () => {
         type="file"
         accept="image/*"
         onChange={handleBoardImageUpload}
+        className="hidden"
+      />
+      <input
+        ref={textFileInputRef}
+        type="file"
+        accept=".txt,.md,.markdown"
+        onChange={handleTextFileImport}
         className="hidden"
       />
     </div>
