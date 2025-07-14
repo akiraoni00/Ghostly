@@ -65,6 +65,10 @@ const MilanoteClone = () => {
   const [showTagManager, setShowTagManager] = useState(false);
   const [pendingTextFileImport, setPendingTextFileImport] = useState(null);
   const [showTagSelectionModal, setShowTagSelectionModal] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [colorPickerTag, setColorPickerTag] = useState(null);
+  const [showTagNameInput, setShowTagNameInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
   
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -1157,9 +1161,15 @@ const MilanoteClone = () => {
                               <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
                             )}
                           </div>
+
+                          <div className="flex-1 overflow-hidden">
+                            <div className="text-gray-300 text-xs leading-relaxed line-clamp-4">
+                              {item.content.replace(/^#.*$/gm, '').slice(0, 100)}...
+                            </div>
+                          </div>
                           
-                          {/* Tags section */}
-                          <div className="flex flex-wrap gap-1 mb-2">
+                          {/* Tags section at bottom */}
+                          <div className="flex flex-wrap gap-1 mt-2">
                             {item.tags?.map((tagId) => {
                               const tag = tags.find(t => t.id === tagId);
                               return tag ? (
@@ -1200,30 +1210,7 @@ const MilanoteClone = () => {
                               <Plus size={12} />
                             </button>
                           </div>
-                          <div className="flex-1 overflow-hidden">
-                            <div className="text-gray-300 text-xs leading-relaxed line-clamp-4">
-                              {item.content.replace(/^#.*$/gm, '').slice(0, 100)}...
-                            </div>
-                          </div>
-                          {item.tags && item.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {item.tags.slice(0, 3).map(tagId => {
-                                const tag = tags.find(t => t.id === tagId);
-                                return tag ? (
-                                  <span 
-                                    key={tag.id} 
-                                    className="px-2 py-1 text-xs rounded-full text-black font-medium"
-                                    style={{ backgroundColor: tag.color }}
-                                  >
-                                    {tag.name}
-                                  </span>
-                                ) : null;
-                              })}
-                              {item.tags.length > 3 && (
-                                <span className="text-gray-400 text-xs">+{item.tags.length - 3}</span>
-                              )}
-                            </div>
-                          )}
+
                         </div>
                       </div>
                     )}
@@ -1272,8 +1259,8 @@ const MilanoteClone = () => {
                       >
                         <div className="p-3 flex flex-col space-y-2">
                           <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                              <Link2 size={16} className="text-white" />
+                            <div className="w-10 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                              <Link2 size={14} className="text-white" />
                             </div>
                             <div className="flex-1">
                               {editingItem?.id === item.id ? (
@@ -1335,12 +1322,21 @@ const MilanoteClone = () => {
                               ) : (
                                 <div>
                                   <h4 className="text-gray-800 font-medium text-sm">{item.title}</h4>
-                                  <p className="text-blue-600 text-xs truncate cursor-pointer" onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (item.url) {
-                                      window.open(item.url, '_blank');
-                                    }
-                                  }}>{item.url || 'No URL set'}</p>
+                                  <p 
+                                    className="text-blue-600 text-xs truncate cursor-pointer" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (item.url) {
+                                        window.open(item.url, '_blank');
+                                      }
+                                    }}
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingItem(item);
+                                    }}
+                                  >
+                                    {item.url || 'No URL set'}
+                                  </p>
                                 </div>
                               )}
                             </div>
@@ -1830,9 +1826,9 @@ const MilanoteClone = () => {
                           y1={conn.y1}
                           x2={conn.x2}
                           y2={conn.y2}
-                          stroke={conn.type === 'file-tag' ? '#fbbf24' : '#f4c2c2'}
-                          strokeWidth={conn.strength || 1}
-                          strokeOpacity={nodeGraphSettings.connectionOpacity}
+                          stroke="#f4c2c2"
+                          strokeWidth={conn.strength || 1.5}
+                          strokeOpacity={nodeGraphSettings.connectionOpacity * 0.4}
                         />
                       ));
                     })()}
@@ -1856,9 +1852,13 @@ const MilanoteClone = () => {
                             cy={y}
                             r={nodeGraphSettings.nodeSize}
                             fill="#f4c2c2"
-                            stroke="#1a1a1a"
+                            stroke="#ffffff"
                             strokeWidth="2"
-                            className="cursor-pointer hover:fill-[#f5d2d2]"
+                            className="cursor-pointer hover:fill-[#f5d2d2] transition-all duration-200"
+                            style={{
+                              filter: 'drop-shadow(0 2px 8px rgba(244, 194, 194, 0.3))',
+                              opacity: 0.9
+                            }}
                             onDoubleClick={() => {
                               // Navigate to board containing this file
                               if (containingBoard) {
@@ -1875,8 +1875,11 @@ const MilanoteClone = () => {
                             x={x}
                             y={y + nodeGraphSettings.nodeSize + 15}
                             textAnchor="middle"
-                            className="text-white fill-current"
-                            style={{ fontSize: `${nodeGraphSettings.textSize}px` }}
+                            className="text-white fill-current font-medium"
+                            style={{ 
+                              fontSize: `${nodeGraphSettings.textSize}px`,
+                              textShadow: '0 1px 3px rgba(0,0,0,0.8)'
+                            }}
                           >
                             {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
                           </text>
@@ -2013,12 +2016,8 @@ const MilanoteClone = () => {
                     className="w-6 h-6 rounded-full border border-gray-600 cursor-pointer"
                     style={{ backgroundColor: tag.color }}
                     onClick={() => {
-                      const newColor = prompt('Enter hex color (e.g., #ff0000):', tag.color);
-                      if (newColor) {
-                        setTags(prev => prev.map(t => 
-                          t.id === tag.id ? { ...t, color: newColor } : t
-                        ));
-                      }
+                      setColorPickerTag(tag);
+                      setShowColorPicker(true);
                     }}
                   />
                   <span className="text-white flex-1">{tag.name}</span>
@@ -2048,19 +2047,147 @@ const MilanoteClone = () => {
               
               <button
                 onClick={() => {
-                  const name = prompt('Enter tag name:');
-                  if (name?.trim()) {
-                    const newTag = {
-                      id: Date.now(),
-                      name: name.trim(),
-                      color: '#' + Math.floor(Math.random()*16777215).toString(16)
-                    };
-                    setTags(prev => [...prev, newTag]);
-                  }
+                  setNewTagName('');
+                  setShowTagNameInput(true);
                 }}
                 className="w-full p-2 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-[#f4c2c2] hover:text-[#f4c2c2] transition-colors"
               >
                 + Add New Tag
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Color Picker Modal */}
+      {showColorPicker && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-80">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white text-lg font-medium">Pick Color</h3>
+              <button
+                onClick={() => {
+                  setShowColorPicker(false);
+                  setColorPickerTag(null);
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-6 gap-2">
+              {[
+                '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dda0dd',
+                '#98d8c8', '#f7dc6f', '#bb8fce', '#85c1e9', '#f8c471', '#82e0aa',
+                '#f1948a', '#85929e', '#d7dbdd', '#fadbd8', '#d5dbdb', '#eaeded'
+              ].map((color) => (
+                <button
+                  key={color}
+                  className="w-8 h-8 rounded-full border-2 border-gray-600 hover:border-[#f4c2c2] transition-colors"
+                  style={{ backgroundColor: color }}
+                  onClick={() => {
+                    if (colorPickerTag) {
+                      setTags(prev => prev.map(t => 
+                        t.id === colorPickerTag.id ? { ...t, color } : t
+                      ));
+                    }
+                    setShowColorPicker(false);
+                    setColorPickerTag(null);
+                  }}
+                />
+              ))}
+            </div>
+            
+            <div className="mt-4">
+              <label className="text-white text-sm">Custom Color:</label>
+              <input
+                type="color"
+                defaultValue={colorPickerTag?.color || '#ff6b6b'}
+                className="w-full h-8 mt-1 rounded border border-gray-600 bg-[#2d2d2d]"
+                onChange={(e) => {
+                  if (colorPickerTag) {
+                    setTags(prev => prev.map(t => 
+                      t.id === colorPickerTag.id ? { ...t, color: e.target.value } : t
+                    ));
+                  }
+                  setShowColorPicker(false);
+                  setColorPickerTag(null);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Name Input Modal */}
+      {showTagNameInput && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-80">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white text-lg font-medium">New Tag</h3>
+              <button
+                onClick={() => {
+                  setShowTagNameInput(false);
+                  setNewTagName('');
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <input
+              type="text"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              placeholder="Enter tag name"
+              className="w-full p-2 bg-[#2d2d2d] border border-gray-600 rounded text-white outline-none focus:border-[#f4c2c2]"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTagName.trim()) {
+                  const newTag = {
+                    id: Date.now(),
+                    name: newTagName.trim(),
+                    color: '#' + Math.floor(Math.random()*16777215).toString(16)
+                  };
+                  setTags(prev => [...prev, newTag]);
+                  setShowTagNameInput(false);
+                  setNewTagName('');
+                }
+                if (e.key === 'Escape') {
+                  setShowTagNameInput(false);
+                  setNewTagName('');
+                }
+              }}
+            />
+            
+            <div className="flex items-center justify-end space-x-2 mt-4">
+              <button
+                onClick={() => {
+                  setShowTagNameInput(false);
+                  setNewTagName('');
+                }}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (newTagName.trim()) {
+                    const newTag = {
+                      id: Date.now(),
+                      name: newTagName.trim(),
+                      color: '#' + Math.floor(Math.random()*16777215).toString(16)
+                    };
+                    setTags(prev => [...prev, newTag]);
+                    setShowTagNameInput(false);
+                    setNewTagName('');
+                  }
+                }}
+                className="px-4 py-2 bg-[#f4c2c2] text-black rounded-lg hover:bg-[#f5d2d2] transition-colors"
+              >
+                Create
               </button>
             </div>
           </div>
