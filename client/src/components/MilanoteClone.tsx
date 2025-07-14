@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music } from 'lucide-react';
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -62,11 +62,15 @@ const MilanoteClone = () => {
   const [nodeGraphPan, setNodeGraphPan] = useState({ x: 0, y: 0 });
   const [isNodeGraphPanning, setIsNodeGraphPanning] = useState(false);
   const [nodeGraphPanStart, setNodeGraphPanStart] = useState({ x: 0, y: 0 });
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [pendingTextFileImport, setPendingTextFileImport] = useState(null);
+  const [showTagSelectionModal, setShowTagSelectionModal] = useState(false);
   
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const boardImageInputRef = useRef(null);
   const textFileInputRef = useRef(null);
+  const audioFileInputRef = useRef(null);
   const [selectedBoardForImage, setSelectedBoardForImage] = useState(null);
   const [draggingEditor, setDraggingEditor] = useState(null);
   const [editorDragOffset, setEditorDragOffset] = useState({ x: 0, y: 0 });
@@ -367,7 +371,7 @@ const MilanoteClone = () => {
   const handleCanvasClick = useCallback((e) => {
     if (selectedTool === 'select') return;
     if (selectedTool === 'tag') {
-      setShowTagPrompt(true);
+      setShowTagManager(true);
       setSelectedTool('select');
       return;
     }
@@ -382,6 +386,20 @@ const MilanoteClone = () => {
       
       setPendingImagePosition({ x: canvasX, y: canvasY });
       textFileInputRef.current?.click();
+      setSelectedTool('select');
+      return;
+    }
+    if (selectedTool === 'audio') {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const canvasX = (x - pan.x) / zoom;
+      const canvasY = (y - pan.y) / zoom;
+      
+      setPendingImagePosition({ x: canvasX, y: canvasY });
+      audioFileInputRef.current?.click();
       setSelectedTool('select');
       return;
     }
@@ -595,7 +613,8 @@ const MilanoteClone = () => {
       const content = event.target.result;
       const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove file extension
       
-      const newItem = {
+      // Store the pending text file import data
+      setPendingTextFileImport({
         id: `textfile_${Date.now()}`,
         type: 'textfile',
         x: pendingImagePosition.x,
@@ -606,6 +625,36 @@ const MilanoteClone = () => {
         content: content,
         tags: [],
         connections: []
+      });
+      
+      // Show tag selection modal
+      setShowTagSelectionModal(true);
+    };
+    reader.readAsText(file);
+    
+    e.target.value = '';
+  }, [currentBoard, saveToHistory, pendingImagePosition]);
+
+  // Handle audio file import
+  const handleAudioFileImport = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingImagePosition) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (!event.target || !event.target.result) return;
+      
+      const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove file extension
+      
+      const newItem = {
+        id: `audio_${Date.now()}`,
+        type: 'audio',
+        x: pendingImagePosition.x,
+        y: pendingImagePosition.y,
+        width: 200,
+        height: 60,
+        title: fileName,
+        src: event.target.result
       };
       
       setBoards(prev => ({
@@ -619,7 +668,7 @@ const MilanoteClone = () => {
       setPendingImagePosition(null);
       saveToHistory();
     };
-    reader.readAsText(file);
+    reader.readAsDataURL(file);
     
     e.target.value = '';
   }, [currentBoard, saveToHistory, pendingImagePosition]);
@@ -834,6 +883,7 @@ const MilanoteClone = () => {
     { id: 'textfile', icon: FilePlus, label: 'New Text File' },
     { id: 'textfile-import', icon: Upload, label: 'Import Text File' },
     { id: 'image', icon: Image, label: 'Add Image' },
+    { id: 'audio', icon: Music, label: 'Add Audio' },
     { id: 'note', icon: StickyNote, label: 'Note' },
     { id: 'line', icon: Minus, label: 'Line' },
     { id: 'link', icon: Link2, label: 'Link' },
@@ -1107,6 +1157,49 @@ const MilanoteClone = () => {
                               <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
                             )}
                           </div>
+                          
+                          {/* Tags section */}
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {item.tags?.map((tagId) => {
+                              const tag = tags.find(t => t.id === tagId);
+                              return tag ? (
+                                <span
+                                  key={tagId}
+                                  className="px-2 py-1 rounded-full text-xs font-medium cursor-pointer"
+                                  style={{ backgroundColor: tag.color, color: '#000' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Remove tag from item
+                                    setBoards(prev => ({
+                                      ...prev,
+                                      [currentBoard]: {
+                                        ...prev[currentBoard],
+                                        items: prev[currentBoard].items.map(i =>
+                                          i.id === item.id 
+                                            ? { ...i, tags: i.tags?.filter(t => t !== tagId) || [] }
+                                            : i
+                                        )
+                                      }
+                                    }));
+                                  }}
+                                >
+                                  {tag.name}
+                                </span>
+                              ) : null;
+                            })}
+                            <button
+                              className="w-6 h-6 rounded-full border-2 border-dashed border-gray-400 flex items-center justify-center text-gray-400 hover:border-[#f4c2c2] hover:text-[#f4c2c2] transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Open tag selection for this item
+                                setSelectedTags(item.tags || []);
+                                setEditingItem(item);
+                                setShowTagSelectionModal(true);
+                              }}
+                            >
+                              <Plus size={12} />
+                            </button>
+                          </div>
                           <div className="flex-1 overflow-hidden">
                             <div className="text-gray-300 text-xs leading-relaxed line-clamp-4">
                               {item.content.replace(/^#.*$/gm, '').slice(0, 100)}...
@@ -1170,7 +1263,13 @@ const MilanoteClone = () => {
                     )}
 
                     {item.type === 'link' && (
-                      <div className="w-full h-full bg-blue-50 rounded-lg shadow-xl border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors">
+                      <div 
+                        className="w-full h-full bg-blue-50 rounded-lg shadow-xl border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors relative"
+                        style={{ 
+                          minWidth: Math.max(200, Math.min(400, (item.title?.length || 0) * 8 + 100)),
+                          minHeight: Math.max(80, item.url ? 100 : 80)
+                        }}
+                      >
                         <div className="p-3 flex flex-col space-y-2">
                           <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
@@ -1198,7 +1297,7 @@ const MilanoteClone = () => {
                                   />
                                   <input
                                     type="text"
-                                    defaultValue={item.url}
+                                    defaultValue={item.url || 'https://'}
                                     className="text-blue-600 text-xs w-full bg-transparent border-b border-blue-300 outline-none"
                                     onBlur={(e) => {
                                       setBoards(prev => ({
@@ -1238,8 +1337,10 @@ const MilanoteClone = () => {
                                   <h4 className="text-gray-800 font-medium text-sm">{item.title}</h4>
                                   <p className="text-blue-600 text-xs truncate cursor-pointer" onClick={(e) => {
                                     e.stopPropagation();
-                                    window.open(item.url, '_blank');
-                                  }}>{item.url}</p>
+                                    if (item.url) {
+                                      window.open(item.url, '_blank');
+                                    }
+                                  }}>{item.url || 'No URL set'}</p>
                                 </div>
                               )}
                             </div>
@@ -1374,6 +1475,40 @@ const MilanoteClone = () => {
                             </button>
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {item.type === 'audio' && (
+                      <div className="w-full h-full bg-purple-50 rounded-lg shadow-xl border border-purple-200 p-3">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Music size={16} className="text-purple-600" />
+                          {editingItem?.id === item.id ? (
+                            <input
+                              type="text"
+                              defaultValue={item.title}
+                              className="text-purple-800 font-medium text-sm bg-transparent border-b border-purple-400 outline-none flex-1"
+                              onBlur={(e) => handleItemEdit(item, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleItemEdit(item, e.target.value);
+                                }
+                                if (e.key === 'Escape') {
+                                  setEditingItem(null);
+                                }
+                              }}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <h4 className="text-purple-800 font-medium text-sm truncate flex-1">{item.title}</h4>
+                          )}
+                        </div>
+                        <audio controls className="w-full">
+                          <source src={item.src} type="audio/mpeg" />
+                          <source src={item.src} type="audio/wav" />
+                          <source src={item.src} type="audio/ogg" />
+                          Your browser does not support the audio element.
+                        </audio>
                       </div>
                     )}
                   </div>
@@ -1857,6 +1992,171 @@ const MilanoteClone = () => {
         </div>
       )}
 
+      {/* Tag Manager Window */}
+      {showTagManager && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-96 max-h-96 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white text-lg font-medium">Tag Manager</h3>
+              <button
+                onClick={() => setShowTagManager(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              {tags.map((tag) => (
+                <div key={tag.id} className="flex items-center space-x-3 p-2 rounded-lg bg-[#2d2d2d]">
+                  <div 
+                    className="w-6 h-6 rounded-full border border-gray-600 cursor-pointer"
+                    style={{ backgroundColor: tag.color }}
+                    onClick={() => {
+                      const newColor = prompt('Enter hex color (e.g., #ff0000):', tag.color);
+                      if (newColor) {
+                        setTags(prev => prev.map(t => 
+                          t.id === tag.id ? { ...t, color: newColor } : t
+                        ));
+                      }
+                    }}
+                  />
+                  <span className="text-white flex-1">{tag.name}</span>
+                  <button
+                    onClick={() => {
+                      setTags(prev => prev.filter(t => t.id !== tag.id));
+                      // Remove this tag from all items
+                      setBoards(prev => {
+                        const newBoards = { ...prev };
+                        Object.keys(newBoards).forEach(boardId => {
+                          if (newBoards[boardId].items) {
+                            newBoards[boardId].items = newBoards[boardId].items.map(item => ({
+                              ...item,
+                              tags: item.tags?.filter(t => t !== tag.id) || []
+                            }));
+                          }
+                        });
+                        return newBoards;
+                      });
+                    }}
+                    className="text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              
+              <button
+                onClick={() => {
+                  const name = prompt('Enter tag name:');
+                  if (name?.trim()) {
+                    const newTag = {
+                      id: Date.now(),
+                      name: name.trim(),
+                      color: '#' + Math.floor(Math.random()*16777215).toString(16)
+                    };
+                    setTags(prev => [...prev, newTag]);
+                  }
+                }}
+                className="w-full p-2 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-[#f4c2c2] hover:text-[#f4c2c2] transition-colors"
+              >
+                + Add New Tag
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Selection Modal */}
+      {showTagSelectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-96">
+            <h3 className="text-white text-lg font-medium mb-4">Select Tags</h3>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {tags.map((tag) => (
+                <div
+                  key={tag.id}
+                  className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                    selectedTags.includes(tag.id) 
+                      ? 'bg-[#f4c2c2] bg-opacity-20' 
+                      : 'bg-[#2d2d2d] hover:bg-[#3d3d3d]'
+                  }`}
+                  onClick={() => {
+                    if (selectedTags.includes(tag.id)) {
+                      setSelectedTags(prev => prev.filter(t => t !== tag.id));
+                    } else {
+                      setSelectedTags(prev => [...prev, tag.id]);
+                    }
+                  }}
+                >
+                  <div 
+                    className="w-5 h-5 rounded-full"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                  <span className="text-white flex-1">{tag.name}</span>
+                  {selectedTags.includes(tag.id) && (
+                    <div className="w-4 h-4 rounded-full bg-[#f4c2c2] flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white rounded-full" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-end space-x-2 mt-4">
+              <button
+                onClick={() => {
+                  setShowTagSelectionModal(false);
+                  setSelectedTags([]);
+                  setEditingItem(null);
+                  setPendingTextFileImport(null);
+                }}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingTextFileImport) {
+                    // Complete text file import with selected tags
+                    const newItem = {
+                      ...pendingTextFileImport,
+                      tags: selectedTags
+                    };
+                    setBoards(prev => ({
+                      ...prev,
+                      [currentBoard]: {
+                        ...prev[currentBoard],
+                        items: [...prev[currentBoard].items, newItem]
+                      }
+                    }));
+                    setPendingImagePosition(null);
+                    setPendingTextFileImport(null);
+                    saveToHistory();
+                  } else if (editingItem) {
+                    // Update existing item tags
+                    setBoards(prev => ({
+                      ...prev,
+                      [currentBoard]: {
+                        ...prev[currentBoard],
+                        items: prev[currentBoard].items.map(i =>
+                          i.id === editingItem.id ? { ...i, tags: selectedTags } : i
+                        )
+                      }
+                    }));
+                    setEditingItem(null);
+                  }
+                  setShowTagSelectionModal(false);
+                  setSelectedTags([]);
+                }}
+                className="px-4 py-2 bg-[#f4c2c2] text-black rounded-lg hover:bg-[#f5d2d2] transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -1877,6 +2177,13 @@ const MilanoteClone = () => {
         type="file"
         accept=".txt,.md,.markdown"
         onChange={handleTextFileImport}
+        className="hidden"
+      />
+      <input
+        ref={audioFileInputRef}
+        type="file"
+        accept="audio/*"
+        onChange={handleAudioFileImport}
         className="hidden"
       />
     </div>
