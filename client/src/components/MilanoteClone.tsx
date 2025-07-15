@@ -56,7 +56,9 @@ const MilanoteClone = () => {
     nodeDistance: 120,
     textSize: 10,
     connectionOpacity: 0.6,
-    nodeSize: 20
+    nodeSize: 20,
+    tagDistance: 180,
+    tagSize: 15
   });
   const [showNodeGraphSettings, setShowNodeGraphSettings] = useState(false);
   const [nodeGraphZoom, setNodeGraphZoom] = useState(1);
@@ -1158,7 +1160,7 @@ const MilanoteClone = () => {
                               <input
                                 type="text"
                                 defaultValue={item.title}
-                                className="text-white font-medium text-sm bg-transparent border-b border-[#f4c2c2] outline-none flex-1"
+                                className="text-white font-medium text-sm bg-transparent border-b border-[#f4c2c2] outline-none flex-1 mr-1"
                                 onBlur={(e) => handleItemEdit(item, e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
@@ -1316,7 +1318,7 @@ const MilanoteClone = () => {
                                       setEditingItem(null);
                                     }
                                   }}
-                                  className="w-full text-gray-800 font-medium text-sm bg-transparent border-b border-gray-400 outline-none"
+                                  className="w-full text-gray-800 font-medium text-sm bg-transparent border-b border-gray-400 outline-none pr-2"
                                   placeholder="Link title"
                                   autoFocus
                                   onClick={(e) => e.stopPropagation()}
@@ -1756,7 +1758,7 @@ const MilanoteClone = () => {
                         const angle = baseAngle + angleVariation;
                         
                         // Vary radius for more interesting layout
-                        const baseRadius = 180;
+                        const baseRadius = nodeGraphSettings.tagDistance;
                         const radiusVariation = Math.sin(index * 3.1) * 40;
                         const radius = baseRadius + radiusVariation;
                         
@@ -1822,8 +1824,11 @@ const MilanoteClone = () => {
                                     x2={tagPos.x}
                                     y2={tagPos.y}
                                     stroke="#f4c2c2"
-                                    strokeWidth="1.5"
-                                    strokeOpacity={nodeGraphSettings.connectionOpacity * 0.4}
+                                    strokeWidth="2"
+                                    strokeOpacity={nodeGraphSettings.connectionOpacity}
+                                    style={{
+                                      filter: 'drop-shadow(0 1px 3px rgba(244, 194, 194, 0.3))',
+                                    }}
                                   />
                                 );
                               }
@@ -1832,49 +1837,34 @@ const MilanoteClone = () => {
                             return connections;
                           })}
                           
-                          {/* File to file connections via shared tags */}
-                          {Array.from(filePositions.values()).map((filePos1, i) => {
-                            return Array.from(filePositions.values()).slice(i + 1).map((filePos2, j) => {
-                              const sharedTags = filePos1.file.tags?.filter(tag => filePos2.file.tags?.includes(tag)) || [];
-                              
-                              if (sharedTags.length > 0) {
-                                return (
-                                  <line
-                                    key={`file-file-${filePos1.file.id}-${filePos2.file.id}`}
-                                    x1={filePos1.x}
-                                    y1={filePos1.y}
-                                    x2={filePos2.x}
-                                    y2={filePos2.y}
-                                    stroke="#f4c2c2"
-                                    strokeWidth={Math.min(sharedTags.length * 0.8, 3)}
-                                    strokeOpacity={nodeGraphSettings.connectionOpacity * 0.6}
-                                  />
-                                );
-                              }
-                              return null;
-                            });
-                          })}
+                          {/* Remove file-to-file connections to reduce visual clutter */}
                           
                           {/* Render tag nodes */}
                           {Array.from(tagPositions.values()).map(({ x, y, tag }) => (
                             <g key={`tag-${tag.id}`}>
                               <rect
-                                x={x - 15}
-                                y={y - 10}
-                                width="30"
-                                height="20"
+                                x={x - nodeGraphSettings.tagSize}
+                                y={y - nodeGraphSettings.tagSize * 0.6}
+                                width={nodeGraphSettings.tagSize * 2}
+                                height={nodeGraphSettings.tagSize * 1.2}
                                 rx="4"
                                 fill={tag.color}
-                                stroke="#1a1a1a"
+                                stroke="#ffffff"
                                 strokeWidth="2"
-                                className="cursor-pointer"
+                                className="cursor-pointer hover:opacity-80 transition-opacity"
+                                style={{
+                                  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
+                                }}
                               />
                               <text
                                 x={x}
-                                y={y + nodeGraphSettings.nodeSize + 15}
+                                y={y + nodeGraphSettings.tagSize + 20}
                                 textAnchor="middle"
-                                className="text-white fill-current"
-                                style={{ fontSize: `${nodeGraphSettings.textSize}px` }}
+                                className="text-white fill-current font-medium"
+                                style={{ 
+                                  fontSize: `${nodeGraphSettings.textSize}px`,
+                                  textShadow: '0 1px 3px rgba(0,0,0,0.8)'
+                                }}
                               >
                                 {tag.name.length > 8 ? tag.name.slice(0, 8) + '...' : tag.name}
                               </text>
@@ -1939,48 +1929,48 @@ const MilanoteClone = () => {
               {showNodeGraphSettings && (
                 <div className="absolute top-4 right-4 bg-[#1a1a1a] border border-gray-700 rounded-lg p-4 w-64 z-10">
                   <h3 className="text-white font-medium mb-3">Graph Settings</h3>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div>
-                      <label className="text-gray-300 text-sm block mb-1">Node Distance</label>
+                      <label className="text-gray-300 text-sm block mb-2">Node Distance</label>
                       <input
                         type="range"
                         min="80"
                         max="200"
-                        step="1"
+                        step="5"
                         value={nodeGraphSettings.nodeDistance}
                         onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeDistance: parseInt(e.target.value) }))}
-                        className="w-full"
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
                       />
                       <span className="text-gray-400 text-xs">{nodeGraphSettings.nodeDistance}px</span>
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm block mb-1">Text Size</label>
+                      <label className="text-gray-300 text-sm block mb-2">Text Size</label>
                       <input
                         type="range"
                         min="8"
                         max="16"
-                        step="1"
+                        step="0.5"
                         value={nodeGraphSettings.textSize}
-                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, textSize: parseInt(e.target.value) }))}
-                        className="w-full"
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, textSize: parseFloat(e.target.value) }))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
                       />
                       <span className="text-gray-400 text-xs">{nodeGraphSettings.textSize}px</span>
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm block mb-1">Connection Opacity</label>
+                      <label className="text-gray-300 text-sm block mb-2">Connection Opacity</label>
                       <input
                         type="range"
                         min="0.1"
                         max="1"
-                        step="0.1"
+                        step="0.05"
                         value={nodeGraphSettings.connectionOpacity}
                         onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, connectionOpacity: parseFloat(e.target.value) }))}
-                        className="w-full"
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
                       />
                       <span className="text-gray-400 text-xs">{Math.round(nodeGraphSettings.connectionOpacity * 100)}%</span>
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm block mb-1">Node Size</label>
+                      <label className="text-gray-300 text-sm block mb-2">Node Size</label>
                       <input
                         type="range"
                         min="15"
@@ -1988,9 +1978,35 @@ const MilanoteClone = () => {
                         step="1"
                         value={nodeGraphSettings.nodeSize}
                         onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeSize: parseInt(e.target.value) }))}
-                        className="w-full"
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
                       />
                       <span className="text-gray-400 text-xs">{nodeGraphSettings.nodeSize}px</span>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-2">Tag Distance</label>
+                      <input
+                        type="range"
+                        min="120"
+                        max="300"
+                        step="10"
+                        value={nodeGraphSettings.tagDistance}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, tagDistance: parseInt(e.target.value) }))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.tagDistance}px</span>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-2">Tag Size</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="25"
+                        step="1"
+                        value={nodeGraphSettings.tagSize}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, tagSize: parseInt(e.target.value) }))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.tagSize}px</span>
                     </div>
                   </div>
                 </div>
