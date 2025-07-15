@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download } from 'lucide-react';
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -75,6 +75,10 @@ const MilanoteClone = () => {
   const [showTagManager, setShowTagManager] = useState(false);
   const [pendingTextFileImport, setPendingTextFileImport] = useState(null);
   const [showTagSelectionModal, setShowTagSelectionModal] = useState(false);
+  const [showSaveLoadModal, setShowSaveLoadModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerTag, setColorPickerTag] = useState(null);
   const [showTagNameInput, setShowTagNameInput] = useState(false);
@@ -85,6 +89,7 @@ const MilanoteClone = () => {
   const boardImageInputRef = useRef(null);
   const textFileInputRef = useRef(null);
   const audioFileInputRef = useRef(null);
+  const projectFolderInputRef = useRef(null);
   const [selectedBoardForImage, setSelectedBoardForImage] = useState(null);
   const [draggingEditor, setDraggingEditor] = useState(null);
   const [editorDragOffset, setEditorDragOffset] = useState({ x: 0, y: 0 });
@@ -97,6 +102,220 @@ const MilanoteClone = () => {
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
   }, [boards, history, historyIndex]);
+
+  // Export all data to downloadable files
+  const exportProject = async () => {
+    setIsExporting(true);
+    try {
+      // Create a comprehensive data structure with all application state
+      const projectData = {
+        version: "1.0.0",
+        timestamp: new Date().toISOString(),
+        boards,
+        tags,
+        openEditors,
+        settings: {
+          zoom,
+          pan,
+          currentBoard,
+          boardHierarchy,
+          nodeGraphSettings
+        },
+        metadata: {
+          totalBoards: Object.keys(boards).length,
+          totalTags: tags.length,
+          exportedAt: new Date().toLocaleString()
+        }
+      };
+
+      // Create individual files for different data types
+      const files = [
+        {
+          name: 'project-data.json',
+          content: JSON.stringify(projectData, null, 2),
+          type: 'application/json'
+        },
+        {
+          name: 'boards-backup.json',
+          content: JSON.stringify(boards, null, 2),
+          type: 'application/json'
+        },
+        {
+          name: 'tags-backup.json',
+          content: JSON.stringify(tags, null, 2),
+          type: 'application/json'
+        },
+        {
+          name: 'settings-backup.json',
+          content: JSON.stringify({
+            zoom,
+            pan,
+            currentBoard,
+            boardHierarchy,
+            nodeGraphSettings,
+            openEditors
+          }, null, 2),
+          type: 'application/json'
+        }
+      ];
+
+      // Export text files content
+      const textFilesContent = {};
+      Object.values(boards).forEach(board => {
+        board.items.forEach(item => {
+          if (item.type === 'textFile' && item.content) {
+            textFilesContent[item.id] = {
+              name: item.name,
+              content: item.content,
+              tags: item.tags || [],
+              created: item.created || new Date().toISOString()
+            };
+          }
+        });
+      });
+
+      if (Object.keys(textFilesContent).length > 0) {
+        files.push({
+          name: 'text-files.json',
+          content: JSON.stringify(textFilesContent, null, 2),
+          type: 'application/json'
+        });
+      }
+
+      // Create and download each file
+      for (const file of files) {
+        const blob = new Blob([file.content], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.name;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Small delay between downloads to avoid browser blocking
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // Create a README file with instructions
+      const readmeContent = `# Ghostly Project Export
+
+This folder contains a complete backup of your Ghostly note-taking project.
+
+## Files included:
+- project-data.json: Complete project data and settings
+- boards-backup.json: All boards and their content
+- tags-backup.json: All tags and their properties
+- settings-backup.json: Application settings and preferences
+- text-files.json: All text file contents (if any)
+
+## How to restore:
+1. Open Ghostly application
+2. Click the folder icon in the top navigation
+3. Select "Import Project"
+4. Choose the project-data.json file
+5. All your boards, notes, tags, and settings will be restored
+
+## Export Details:
+- Exported on: ${new Date().toLocaleString()}
+- Total boards: ${Object.keys(boards).length}
+- Total tags: ${tags.length}
+- Version: 1.0.0
+
+Keep this folder safe as a backup of your work!
+`;
+
+      const readmeBlob = new Blob([readmeContent], { type: 'text/plain' });
+      const readmeUrl = URL.createObjectURL(readmeBlob);
+      const readmeLink = document.createElement('a');
+      readmeLink.href = readmeUrl;
+      readmeLink.download = 'README.txt';
+      readmeLink.style.display = 'none';
+      document.body.appendChild(readmeLink);
+      readmeLink.click();
+      document.body.removeChild(readmeLink);
+      URL.revokeObjectURL(readmeUrl);
+
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setIsExporting(false);
+      setShowSaveLoadModal(false);
+    }
+  };
+
+  // Import project data from file
+  const importProject = async (file) => {
+    setIsImporting(true);
+    setImportProgress('Reading file...');
+    
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      setImportProgress('Validating data...');
+      
+      // Validate the import data structure
+      if (!data.boards || !data.version) {
+        throw new Error('Invalid project file format');
+      }
+
+      setImportProgress('Importing boards...');
+      setBoards(data.boards);
+      
+      setImportProgress('Importing tags...');
+      if (data.tags) {
+        setTags(data.tags);
+      }
+      
+      setImportProgress('Importing settings...');
+      if (data.settings) {
+        if (data.settings.zoom !== undefined) setZoom(data.settings.zoom);
+        if (data.settings.pan) setPan(data.settings.pan);
+        if (data.settings.currentBoard) setCurrentBoard(data.settings.currentBoard);
+        if (data.settings.boardHierarchy) setBoardHierarchy(data.settings.boardHierarchy);
+        if (data.settings.nodeGraphSettings) setNodeGraphSettings(data.settings.nodeGraphSettings);
+        if (data.settings.openEditors) setOpenEditors(data.settings.openEditors);
+      }
+
+      setImportProgress('Saving to local storage...');
+      // Update localStorage with imported data
+      localStorage.setItem('ghostly-boards', JSON.stringify(data.boards));
+      localStorage.setItem('ghostly-tags', JSON.stringify(data.tags || []));
+      localStorage.setItem('ghostly-currentBoard', JSON.stringify(data.settings?.currentBoard || 'home'));
+      localStorage.setItem('ghostly-boardHierarchy', JSON.stringify(data.settings?.boardHierarchy || ['home']));
+      localStorage.setItem('ghostly-zoom', JSON.stringify(data.settings?.zoom || 1));
+      localStorage.setItem('ghostly-pan', JSON.stringify(data.settings?.pan || { x: 0, y: 0 }));
+
+      setImportProgress('Complete!');
+      
+      // Save current state to history
+      saveToHistory();
+      
+      setTimeout(() => {
+        setIsImporting(false);
+        setImportProgress('');
+        setShowSaveLoadModal(false);
+        alert('Project imported successfully!');
+      }, 500);
+
+    } catch (error) {
+      console.error('Import failed:', error);
+      setIsImporting(false);
+      setImportProgress('');
+      alert('Import failed. Please check your file and try again.');
+    }
+  };
+
+  const handleProjectFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      importProject(file);
+    }
+  };
 
   // Add new tag
   const addTag = useCallback((tagName) => {
@@ -980,6 +1199,15 @@ const MilanoteClone = () => {
         </div>
         
         <div className="flex items-center space-x-4">
+          {/* Save/Load Project */}
+          <button
+            onClick={() => setShowSaveLoadModal(true)}
+            className="p-2 text-gray-400 hover:text-white transition-colors"
+            title="Save/Load Project"
+          >
+            <FolderOpen size={16} />
+          </button>
+          
           {/* Node Graph Toggle */}
           <button
             onClick={() => setShowNodeGraph(!showNodeGraph)}
@@ -2470,6 +2698,80 @@ const MilanoteClone = () => {
         </div>
       )}
 
+      {/* Save/Load Project Modal */}
+      {showSaveLoadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-96 max-w-[90vw]">
+            <h3 className="text-white text-lg font-medium mb-4">Project Management</h3>
+            
+            {/* Export Section */}
+            <div className="space-y-4">
+              <div className="border-b border-gray-700 pb-4">
+                <h4 className="text-white font-medium mb-2">Export Project</h4>
+                <p className="text-gray-400 text-sm mb-3">
+                  Download all your boards, notes, tags, and settings as backup files
+                </p>
+                <button
+                  onClick={exportProject}
+                  disabled={isExporting}
+                  className="w-full flex items-center justify-center space-x-2 bg-[#f4c2c2] text-black rounded-lg px-4 py-2 hover:bg-[#f5d2d2] transition-colors disabled:opacity-50"
+                >
+                  {isExporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      <span>Exporting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={16} />
+                      <span>Export Project</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Import Section */}
+              <div>
+                <h4 className="text-white font-medium mb-2">Import Project</h4>
+                <p className="text-gray-400 text-sm mb-3">
+                  Load a previously exported project file to restore all your data
+                </p>
+                {isImporting ? (
+                  <div className="w-full bg-[#2d2d2d] rounded-lg p-4">
+                    <div className="flex items-center justify-center space-x-2 mb-2">
+                      <div className="w-4 h-4 border-2 border-[#f4c2c2] border-t-transparent rounded-full animate-spin" />
+                      <span className="text-white">Importing...</span>
+                    </div>
+                    {importProgress && (
+                      <p className="text-gray-400 text-sm text-center">{importProgress}</p>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => projectFolderInputRef.current?.click()}
+                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
+                  >
+                    <Upload size={16} />
+                    <span>Import Project</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowSaveLoadModal(false)}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                disabled={isExporting || isImporting}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -2497,6 +2799,13 @@ const MilanoteClone = () => {
         type="file"
         accept="audio/*"
         onChange={handleAudioFileImport}
+        className="hidden"
+      />
+      <input
+        ref={projectFolderInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleProjectFileSelect}
         className="hidden"
       />
     </div>
