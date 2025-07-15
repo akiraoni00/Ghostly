@@ -1561,34 +1561,7 @@ const MilanoteClone = () => {
         </div>
       )}
 
-      {/* Tag Selector */}
-      {selectedTool === 'textfile' && tags.length > 0 && (
-        <div className="fixed bottom-4 left-20 bg-[#1a1a1a] border border-gray-700 rounded-lg p-4 z-50 max-w-xs">
-          <h4 className="text-white text-sm mb-2">Select Tags:</h4>
-          <div className="flex flex-wrap gap-2">
-            {tags.map(tag => (
-              <button
-                key={tag.id}
-                onClick={() => {
-                  setSelectedTags(prev => 
-                    prev.includes(tag.id) 
-                      ? prev.filter(id => id !== tag.id)
-                      : [...prev, tag.id]
-                  );
-                }}
-                className={`px-2 py-1 text-xs rounded-full font-medium transition-colors ${
-                  selectedTags.includes(tag.id)
-                    ? 'text-black'
-                    : 'text-white bg-gray-600 hover:bg-gray-500'
-                }`}
-                style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
-              >
-                {tag.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* Text File Editors */}
       {openEditors.map(editor => (
