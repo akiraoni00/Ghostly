@@ -278,10 +278,10 @@ const MilanoteClone = () => {
           type: 'link',
           x: canvasX,
           y: canvasY,
-          width: 220,
-          height: 80,
-          url: 'https://example.com',
-          title: 'Example Link'
+          width: 180,
+          height: 60,
+          url: '',
+          title: ''
         };
         break;
       case 'todo':
@@ -1263,96 +1263,52 @@ const MilanoteClone = () => {
                     )}
 
                     {item.type === 'link' && (
-                      <div 
-                        className="w-full h-full bg-blue-50 rounded-lg shadow-xl border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors relative"
-                        style={{ 
-                          minWidth: Math.max(200, Math.min(400, (item.title?.length || 0) * 8 + 100)),
-                          minHeight: Math.max(80, item.url ? 100 : 80)
-                        }}
-                      >
-                        <div className="p-3 flex flex-col space-y-2">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                              <Link2 size={14} className="text-white" />
-                            </div>
-                            <div className="flex-1">
-                              {editingItem?.id === item.id ? (
-                                <div className="space-y-1">
-                                  <input
-                                    type="text"
-                                    defaultValue={item.title}
-                                    className="text-gray-800 font-medium text-sm w-full bg-transparent border-b border-gray-400 outline-none"
-                                    onBlur={(e) => handleItemEdit(item, e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        handleItemEdit(item, e.target.value);
-                                      }
-                                      if (e.key === 'Escape') {
-                                        setEditingItem(null);
-                                      }
-                                    }}
-                                    autoFocus
-                                    onClick={(e) => e.stopPropagation()}
-                                    placeholder="Link title"
-                                  />
-                                  <input
-                                    type="text"
-                                    defaultValue={item.url || 'https://'}
-                                    className="text-blue-600 text-xs w-full bg-transparent border-b border-blue-300 outline-none"
-                                    onBlur={(e) => {
-                                      setBoards(prev => ({
-                                        ...prev,
-                                        [currentBoard]: {
-                                          ...prev[currentBoard],
-                                          items: prev[currentBoard].items.map(i =>
-                                            i.id === item.id ? { ...i, url: e.target.value } : i
-                                          )
-                                        }
-                                      }));
-                                      setEditingItem(null);
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        setBoards(prev => ({
-                                          ...prev,
-                                          [currentBoard]: {
-                                            ...prev[currentBoard],
-                                            items: prev[currentBoard].items.map(i =>
-                                              i.id === item.id ? { ...i, url: e.target.value } : i
-                                            )
-                                          }
-                                        }));
-                                        setEditingItem(null);
-                                      }
-                                      if (e.key === 'Escape') {
-                                        setEditingItem(null);
-                                      }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    placeholder="Enter URL"
-                                  />
-                                </div>
-                              ) : (
-                                <div>
-                                  <h4 className="text-gray-800 font-medium text-sm">{item.title}</h4>
-                                  <p 
-                                    className="text-blue-600 text-xs truncate cursor-pointer" 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (item.url) {
-                                        window.open(item.url, '_blank');
-                                      }
-                                    }}
-                                    onDoubleClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingItem(item);
-                                    }}
-                                  >
-                                    {item.url || 'No URL set'}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
+                      <div className="bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 min-w-[180px] min-h-[60px]">
+                        <div className="flex items-start space-x-2">
+                          <Link2 size={16} className="text-blue-600 mt-1 flex-shrink-0" />
+                          <div className="flex-1 space-y-1">
+                            <input
+                              type="text"
+                              value={item.title || ''}
+                              onChange={(e) => {
+                                setBoards(prev => ({
+                                  ...prev,
+                                  [currentBoard]: {
+                                    ...prev[currentBoard],
+                                    items: prev[currentBoard].items.map(i =>
+                                      i.id === item.id ? { ...i, title: e.target.value } : i
+                                    )
+                                  }
+                                }));
+                              }}
+                              className="w-full text-gray-800 font-medium text-sm bg-transparent border-none outline-none resize-none"
+                              placeholder="Link title"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <input
+                              type="text"
+                              value={item.url || ''}
+                              onChange={(e) => {
+                                setBoards(prev => ({
+                                  ...prev,
+                                  [currentBoard]: {
+                                    ...prev[currentBoard],
+                                    items: prev[currentBoard].items.map(i =>
+                                      i.id === item.id ? { ...i, url: e.target.value } : i
+                                    )
+                                  }
+                                }));
+                              }}
+                              className="w-full text-blue-600 text-xs bg-transparent border-none outline-none resize-none"
+                              placeholder="https://example.com"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && item.url) {
+                                  e.preventDefault();
+                                  window.open(item.url, '_blank');
+                                }
+                              }}
+                            />
                           </div>
                         </div>
                       </div>
@@ -2200,27 +2156,6 @@ const MilanoteClone = () => {
                       : [...selectedTags, tag.id];
                     
                     setSelectedTags(newSelectedTags);
-                    
-                    // Apply changes immediately for pending text file imports
-                    if (pendingTextFileImport) {
-                      setPendingTextFileImport(prev => ({
-                        ...prev,
-                        tags: newSelectedTags
-                      }));
-                    }
-                    
-                    // Apply changes immediately for existing items
-                    if (editingItem) {
-                      setBoards(prev => ({
-                        ...prev,
-                        [currentBoard]: {
-                          ...prev[currentBoard],
-                          items: prev[currentBoard].items.map(i =>
-                            i.id === editingItem.id ? { ...i, tags: newSelectedTags } : i
-                          )
-                        }
-                      }));
-                    }
                   }}
                 >
                   <div 
