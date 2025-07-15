@@ -60,6 +60,13 @@ const MilanoteClone = () => {
     tagDistance: 180,
     tagSize: 15
   });
+  const [nodePositions, setNodePositions] = useState(() => {
+    const saved = localStorage.getItem('ghostly-node-positions');
+    return saved ? new Map(JSON.parse(saved)) : new Map();
+  }); // Store custom positions
+  const [isDraggingNode, setIsDraggingNode] = useState(false);
+  const [draggedNode, setDraggedNode] = useState(null);
+  const [clickTimer, setClickTimer] = useState(null);
   const [showNodeGraphSettings, setShowNodeGraphSettings] = useState(false);
   const [nodeGraphZoom, setNodeGraphZoom] = useState(1);
   const [nodeGraphPan, setNodeGraphPan] = useState({ x: 0, y: 0 });
@@ -203,6 +210,15 @@ const MilanoteClone = () => {
       console.warn('Failed to save tags to localStorage:', error);
     }
   }, [tags]);
+
+  // Autosave node positions
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-node-positions', JSON.stringify([...nodePositions]));
+    } catch (error) {
+      console.warn('Failed to save node positions to localStorage:', error);
+    }
+  }, [nodePositions]);
 
   // Create new item based on selected tool
   const createItem = useCallback((x, y, type = selectedTool) => {
@@ -1717,15 +1733,53 @@ const MilanoteClone = () => {
                   });
                 }}
                 onMouseMove={(e) => {
-                  if (isNodeGraphPanning) {
+                  if (draggedNode && !draggedNode.hasMoved) {
+                    const moved = Math.abs(e.clientX - draggedNode.startX) > 5 || Math.abs(e.clientY - draggedNode.startY) > 5;
+                    if (moved) {
+                      setDraggedNode(prev => ({ ...prev, hasMoved: true }));
+                      if (clickTimer) {
+                        clearTimeout(clickTimer);
+                        setClickTimer(null);
+                      }
+                      setIsDraggingNode(true);
+                    }
+                  }
+                  
+                  if (isDraggingNode && draggedNode) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
+                    const y = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
+                    
+                    setNodePositions(prev => {
+                      const newMap = new Map(prev);
+                      newMap.set(`${draggedNode.type}-${draggedNode.id}`, { x, y });
+                      return newMap;
+                    });
+                  } else if (isNodeGraphPanning) {
                     setNodeGraphPan({
                       x: e.clientX - nodeGraphPanStart.x,
                       y: e.clientY - nodeGraphPanStart.y
                     });
                   }
                 }}
-                onMouseUp={() => setIsNodeGraphPanning(false)}
-                onMouseLeave={() => setIsNodeGraphPanning(false)}
+                onMouseUp={() => {
+                  if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    setClickTimer(null);
+                  }
+                  setIsNodeGraphPanning(false);
+                  setIsDraggingNode(false);
+                  setDraggedNode(null);
+                }}
+                onMouseLeave={() => {
+                  if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    setClickTimer(null);
+                  }
+                  setIsNodeGraphPanning(false);
+                  setIsDraggingNode(false);
+                  setDraggedNode(null);
+                }}
                 onWheel={(e) => {
                   e.preventDefault();
                   const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -1750,26 +1804,34 @@ const MilanoteClone = () => {
                       const centerX = 500;
                       const centerY = 300;
                       
-                      // Position tags in organic clusters, not linear
+                      // Position tags using custom positions or organic clusters
                       tags.forEach((tag, index) => {
-                        const baseAngle = (index / tags.length) * 2 * Math.PI;
-                        // Add randomness for organic feel
-                        const angleVariation = (Math.sin(index * 2.3) * 0.8) + (Math.cos(index * 1.7) * 0.6);
-                        const angle = baseAngle + angleVariation;
-                        
-                        // Vary radius for more interesting layout
-                        const baseRadius = nodeGraphSettings.tagDistance;
-                        const radiusVariation = Math.sin(index * 3.1) * 40;
-                        const radius = baseRadius + radiusVariation;
-                        
-                        const x = centerX + Math.cos(angle) * radius;
-                        const y = centerY + Math.sin(angle) * radius;
-                        tagPositions.set(tag.id, { x, y, tag });
+                        const customPos = nodePositions.get(`tag-${tag.id}`);
+                        if (customPos) {
+                          tagPositions.set(tag.id, { x: customPos.x, y: customPos.y, tag });
+                        } else {
+                          const baseAngle = (index / tags.length) * 2 * Math.PI;
+                          // Add randomness for organic feel
+                          const angleVariation = (Math.sin(index * 2.3) * 0.8) + (Math.cos(index * 1.7) * 0.6);
+                          const angle = baseAngle + angleVariation;
+                          
+                          // Vary radius for more interesting layout
+                          const baseRadius = nodeGraphSettings.tagDistance;
+                          const radiusVariation = Math.sin(index * 3.1) * 40;
+                          const radius = baseRadius + radiusVariation;
+                          
+                          const x = centerX + Math.cos(angle) * radius;
+                          const y = centerY + Math.sin(angle) * radius;
+                          tagPositions.set(tag.id, { x, y, tag });
+                        }
                       });
                       
-                      // Position files in 360° around their primary tags
+                      // Position files using custom positions or around their primary tags
                       textFiles.forEach((file, fileIndex) => {
-                        if (file.tags && file.tags.length > 0) {
+                        const customPos = nodePositions.get(`file-${file.id}`);
+                        if (customPos) {
+                          filePositions.set(file.id, { x: customPos.x, y: customPos.y, file });
+                        } else if (file.tags && file.tags.length > 0) {
                           // Get primary tag (first tag or most central one)
                           const primaryTagId = file.tags[0];
                           const primaryTagPos = tagPositions.get(primaryTagId);
@@ -1851,16 +1913,36 @@ const MilanoteClone = () => {
                                 fill={tag.color}
                                 stroke="#ffffff"
                                 strokeWidth="2"
-                                className="cursor-pointer hover:opacity-80 transition-opacity"
+                                className="cursor-move hover:opacity-80 transition-opacity"
                                 style={{
                                   filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
+                                }}
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                  const startTime = Date.now();
+                                  const startPos = { x: e.clientX, y: e.clientY };
+                                  
+                                  setDraggedNode({ 
+                                    type: 'tag', 
+                                    id: tag.id, 
+                                    startX: e.clientX, 
+                                    startY: e.clientY,
+                                    startTime,
+                                    hasMoved: false
+                                  });
+                                  
+                                  const timer = setTimeout(() => {
+                                    setIsDraggingNode(true);
+                                  }, 150); // Small delay to distinguish from click
+                                  
+                                  setClickTimer(timer);
                                 }}
                               />
                               <text
                                 x={x}
                                 y={y + nodeGraphSettings.tagSize + 20}
                                 textAnchor="middle"
-                                className="text-white fill-current font-medium"
+                                className="text-white fill-current font-medium pointer-events-none"
                                 style={{ 
                                   fontSize: `${nodeGraphSettings.textSize}px`,
                                   textShadow: '0 1px 3px rgba(0,0,0,0.8)'
@@ -1887,12 +1969,33 @@ const MilanoteClone = () => {
                                   fill="#f4c2c2"
                                   stroke="#ffffff"
                                   strokeWidth="2"
-                                  className="cursor-pointer hover:fill-[#f5d2d2] transition-all duration-200"
+                                  className="cursor-move hover:fill-[#f5d2d2] transition-all duration-200"
                                   style={{
                                     filter: 'drop-shadow(0 2px 8px rgba(244, 194, 194, 0.3))',
                                     opacity: 0.9
                                   }}
-                                  onDoubleClick={() => {
+                                  onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                    const startTime = Date.now();
+                                    const startPos = { x: e.clientX, y: e.clientY };
+                                    
+                                    setDraggedNode({ 
+                                      type: 'file', 
+                                      id: file.id, 
+                                      startX: e.clientX, 
+                                      startY: e.clientY,
+                                      startTime,
+                                      hasMoved: false
+                                    });
+                                    
+                                    const timer = setTimeout(() => {
+                                      setIsDraggingNode(true);
+                                    }, 150); // Small delay to distinguish from click
+                                    
+                                    setClickTimer(timer);
+                                  }}
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
                                     // Navigate to board containing this file
                                     if (containingBoard) {
                                       setShowNodeGraph(false);
@@ -1907,7 +2010,7 @@ const MilanoteClone = () => {
                                   x={x}
                                   y={y + nodeGraphSettings.nodeSize + 15}
                                   textAnchor="middle"
-                                  className="text-white fill-current font-medium"
+                                  className="text-white fill-current font-medium pointer-events-none"
                                   style={{ 
                                     fontSize: `${nodeGraphSettings.textSize}px`,
                                     textShadow: '0 1px 3px rgba(0,0,0,0.8)'
@@ -2125,8 +2228,20 @@ const MilanoteClone = () => {
 
       {/* Color Picker Modal */}
       {showColorPicker && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-80">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+          onClick={(e) => {
+            // Only close if clicking the backdrop, not the modal content
+            if (e.target === e.currentTarget) {
+              setShowColorPicker(false);
+              setColorPickerTag(null);
+            }
+          }}
+        >
+          <div 
+            className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-80"
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white text-lg font-medium">Pick Color</h3>
               <button
@@ -2175,8 +2290,14 @@ const MilanoteClone = () => {
                       t.id === colorPickerTag.id ? { ...t, color: e.target.value } : t
                     ));
                   }
-                  setShowColorPicker(false);
-                  setColorPickerTag(null);
+                  // Don't close immediately, let user continue adjusting
+                }}
+                onBlur={() => {
+                  // Close when user finishes with the color picker
+                  setTimeout(() => {
+                    setShowColorPicker(false);
+                    setColorPickerTag(null);
+                  }, 100);
                 }}
               />
             </div>
