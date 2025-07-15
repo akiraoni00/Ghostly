@@ -248,7 +248,8 @@ const MilanoteClone = () => {
         };
         break;
       case 'textfile':
-        newItem = {
+        // Store the pending text file data
+        setPendingTextFileImport({
           id,
           type: 'textfile',
           x: canvasX,
@@ -257,10 +258,15 @@ const MilanoteClone = () => {
           height: 140,
           title: 'New Document',
           content: '# New Document\n\nStart writing here...',
-          tags: selectedTags.slice(),
+          tags: [],
           connections: []
-        };
-        break;
+        });
+        
+        // Show tag selection modal immediately
+        setSelectedTags([]);
+        setShowTagSelectionModal(true);
+        setSelectedTool('select');
+        return; // Don't create the item yet
       case 'image':
         setPendingImagePosition({ x: canvasX, y: canvasY });
         fileInputRef.current?.click();
@@ -375,8 +381,7 @@ const MilanoteClone = () => {
   const handleCanvasClick = useCallback((e) => {
     if (selectedTool === 'select') return;
     if (selectedTool === 'tag') {
-      setShowTagManager(true);
-      setSelectedTool('select');
+      // Don't handle in canvas click - tag tool opens immediately
       return;
     }
     if (selectedTool === 'textfile-import') {
@@ -631,7 +636,8 @@ const MilanoteClone = () => {
         connections: []
       });
       
-      // Show tag selection modal
+      // Show tag selection modal immediately
+      setSelectedTags([]);
       setShowTagSelectionModal(true);
     };
     reader.readAsText(file);
@@ -1012,7 +1018,14 @@ const MilanoteClone = () => {
           {tools.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
-              onClick={() => setSelectedTool(id)}
+              onClick={() => {
+                if (id === 'tag') {
+                  setShowTagManager(true);
+                  setSelectedTool('select');
+                } else {
+                  setSelectedTool(id);
+                }
+              }}
               className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
                 selectedTool === id
                   ? 'bg-[#f4c2c2] text-black'
@@ -2209,10 +2222,31 @@ const MilanoteClone = () => {
                       : 'bg-[#2d2d2d] hover:bg-[#3d3d3d]'
                   }`}
                   onClick={() => {
-                    if (selectedTags.includes(tag.id)) {
-                      setSelectedTags(prev => prev.filter(t => t !== tag.id));
-                    } else {
-                      setSelectedTags(prev => [...prev, tag.id]);
+                    const newSelectedTags = selectedTags.includes(tag.id) 
+                      ? selectedTags.filter(t => t !== tag.id)
+                      : [...selectedTags, tag.id];
+                    
+                    setSelectedTags(newSelectedTags);
+                    
+                    // Apply changes immediately for pending text file imports
+                    if (pendingTextFileImport) {
+                      setPendingTextFileImport(prev => ({
+                        ...prev,
+                        tags: newSelectedTags
+                      }));
+                    }
+                    
+                    // Apply changes immediately for existing items
+                    if (editingItem) {
+                      setBoards(prev => ({
+                        ...prev,
+                        [currentBoard]: {
+                          ...prev[currentBoard],
+                          items: prev[currentBoard].items.map(i =>
+                            i.id === editingItem.id ? { ...i, tags: newSelectedTags } : i
+                          )
+                        }
+                      }));
                     }
                   }}
                 >
