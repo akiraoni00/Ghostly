@@ -1263,52 +1263,102 @@ const MilanoteClone = () => {
                     )}
 
                     {item.type === 'link' && (
-                      <div className="bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 min-w-[180px] min-h-[60px]">
+                      <div 
+                        className="bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 min-w-[180px] min-h-[60px] cursor-pointer hover:bg-blue-100 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (item.url && !editingItem) {
+                            window.open(item.url, '_blank');
+                          }
+                        }}
+                      >
                         <div className="flex items-start space-x-2">
                           <Link2 size={16} className="text-blue-600 mt-1 flex-shrink-0" />
                           <div className="flex-1 space-y-1">
-                            <input
-                              type="text"
-                              value={item.title || ''}
-                              onChange={(e) => {
-                                setBoards(prev => ({
-                                  ...prev,
-                                  [currentBoard]: {
-                                    ...prev[currentBoard],
-                                    items: prev[currentBoard].items.map(i =>
-                                      i.id === item.id ? { ...i, title: e.target.value } : i
-                                    )
-                                  }
-                                }));
-                              }}
-                              className="w-full text-gray-800 font-medium text-sm bg-transparent border-none outline-none resize-none"
-                              placeholder="Link title"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <input
-                              type="text"
-                              value={item.url || ''}
-                              onChange={(e) => {
-                                setBoards(prev => ({
-                                  ...prev,
-                                  [currentBoard]: {
-                                    ...prev[currentBoard],
-                                    items: prev[currentBoard].items.map(i =>
-                                      i.id === item.id ? { ...i, url: e.target.value } : i
-                                    )
-                                  }
-                                }));
-                              }}
-                              className="w-full text-blue-600 text-xs bg-transparent border-none outline-none resize-none"
-                              placeholder="https://example.com"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && item.url) {
-                                  e.preventDefault();
-                                  window.open(item.url, '_blank');
-                                }
-                              }}
-                            />
+                            {editingItem?.id === item.id ? (
+                              <>
+                                <input
+                                  type="text"
+                                  defaultValue={item.title || ''}
+                                  onBlur={(e) => {
+                                    setBoards(prev => ({
+                                      ...prev,
+                                      [currentBoard]: {
+                                        ...prev[currentBoard],
+                                        items: prev[currentBoard].items.map(i =>
+                                          i.id === item.id ? { ...i, title: e.target.value } : i
+                                        )
+                                      }
+                                    }));
+                                    setEditingItem(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      setBoards(prev => ({
+                                        ...prev,
+                                        [currentBoard]: {
+                                          ...prev[currentBoard],
+                                          items: prev[currentBoard].items.map(i =>
+                                            i.id === item.id ? { ...i, title: e.target.value } : i
+                                          )
+                                        }
+                                      }));
+                                      setEditingItem(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingItem(null);
+                                    }
+                                  }}
+                                  className="w-full text-gray-800 font-medium text-sm bg-transparent border-b border-gray-400 outline-none"
+                                  placeholder="Link title"
+                                  autoFocus
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <input
+                                  type="text"
+                                  defaultValue={item.url || ''}
+                                  onBlur={(e) => {
+                                    setBoards(prev => ({
+                                      ...prev,
+                                      [currentBoard]: {
+                                        ...prev[currentBoard],
+                                        items: prev[currentBoard].items.map(i =>
+                                          i.id === item.id ? { ...i, url: e.target.value } : i
+                                        )
+                                      }
+                                    }));
+                                    setEditingItem(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      setBoards(prev => ({
+                                        ...prev,
+                                        [currentBoard]: {
+                                          ...prev[currentBoard],
+                                          items: prev[currentBoard].items.map(i =>
+                                            i.id === item.id ? { ...i, url: e.target.value } : i
+                                          )
+                                        }
+                                      }));
+                                      setEditingItem(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingItem(null);
+                                    }
+                                  }}
+                                  className="w-full text-blue-600 text-xs bg-transparent border-b border-blue-300 outline-none"
+                                  placeholder="https://example.com"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-gray-800 font-medium text-sm">
+                                  {item.title || 'Untitled Link'}
+                                </div>
+                                <div className="text-blue-600 text-xs truncate">
+                                  {item.url || 'No URL'}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2213,6 +2263,7 @@ const MilanoteClone = () => {
                       }
                     }));
                     setEditingItem(null);
+                    saveToHistory();
                   }
                   setShowTagSelectionModal(false);
                   setSelectedTags([]);
