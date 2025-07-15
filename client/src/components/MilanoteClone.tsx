@@ -50,6 +50,7 @@ const MilanoteClone = () => {
     return savedTags ? JSON.parse(savedTags) : [];
   });
   const [selectedTags, setSelectedTags] = useState([]);
+  const [editingItemForTags, setEditingItemForTags] = useState(null);
   const [showTagPrompt, setShowTagPrompt] = useState(false);
   const [nodeGraphSettings, setNodeGraphSettings] = useState({
     nodeDistance: 120,
@@ -1215,8 +1216,9 @@ const MilanoteClone = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 // Open tag selection for this item
-                                setSelectedTags(item.tags || []);
-                                setEditingItem(item);
+                                const currentTags = item.tags || [];
+                                setSelectedTags([...currentTags]);
+                                setEditingItemForTags(item);
                                 setShowTagSelectionModal(true);
                               }}
                             >
@@ -1264,7 +1266,13 @@ const MilanoteClone = () => {
 
                     {item.type === 'link' && (
                       <div 
-                        className="bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 min-w-[180px] min-h-[60px] cursor-pointer hover:bg-blue-100 transition-colors"
+                        className="bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 cursor-pointer hover:bg-blue-100 transition-colors"
+                        style={{
+                          minWidth: '180px',
+                          minHeight: '60px',
+                          width: Math.max(180, Math.min(400, ((item.title || 'Untitled Link').length * 8) + 60)),
+                          height: 'auto'
+                        }}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (item.url && !editingItem) {
@@ -1351,10 +1359,10 @@ const MilanoteClone = () => {
                               </>
                             ) : (
                               <>
-                                <div className="text-gray-800 font-medium text-sm">
+                                <div className="text-gray-800 font-medium text-sm break-words">
                                   {item.title || 'Untitled Link'}
                                 </div>
-                                <div className="text-blue-600 text-xs truncate">
+                                <div className="text-blue-600 text-xs break-all">
                                   {item.url || 'No URL'}
                                 </div>
                               </>
@@ -1729,155 +1737,200 @@ const MilanoteClone = () => {
                   }}
                 >
                   <svg className="w-full h-full" style={{ minWidth: '1000px', minHeight: '600px' }}>
-                    {/* Render tag nodes */}
-                    {tags.map((tag, tagIndex) => {
-                      const tagX = 200 + (tagIndex % 3) * nodeGraphSettings.nodeDistance * 2;
-                      const tagY = 150 + Math.floor(tagIndex / 3) * nodeGraphSettings.nodeDistance;
-                      
-                      return (
-                        <g key={`tag-${tag.id}`}>
-                          <rect
-                            x={tagX - 15}
-                            y={tagY - 10}
-                            width="30"
-                            height="20"
-                            rx="4"
-                            fill={tag.color}
-                            stroke="#1a1a1a"
-                            strokeWidth="2"
-                            className="cursor-pointer"
-                          />
-                          <text
-                            x={tagX}
-                            y={tagY + nodeGraphSettings.nodeSize + 15}
-                            textAnchor="middle"
-                            className="text-white fill-current"
-                            style={{ fontSize: `${nodeGraphSettings.textSize}px` }}
-                          >
-                            {tag.name.length > 8 ? tag.name.slice(0, 8) + '...' : tag.name}
-                          </text>
-                        </g>
-                      );
-                    })}
-                    
-                    {/* Render connections between text files and tags */}
                     {(() => {
                       const textFiles = Object.values(boards).flatMap(board => 
                         board.items?.filter(item => item.type === 'textfile') || []
                       );
-                      const connections = [];
                       
-                      // File to tag connections
-                      textFiles.forEach((file, fileIndex) => {
-                        const fileX = 100 + (fileIndex % 6) * nodeGraphSettings.nodeDistance;
-                        const fileY = 350 + Math.floor(fileIndex / 6) * nodeGraphSettings.nodeDistance;
+                      // Create organic positions for tags and files
+                      const tagPositions = new Map();
+                      const filePositions = new Map();
+                      const centerX = 500;
+                      const centerY = 300;
+                      
+                      // Position tags in organic clusters, not linear
+                      tags.forEach((tag, index) => {
+                        const baseAngle = (index / tags.length) * 2 * Math.PI;
+                        // Add randomness for organic feel
+                        const angleVariation = (Math.sin(index * 2.3) * 0.8) + (Math.cos(index * 1.7) * 0.6);
+                        const angle = baseAngle + angleVariation;
                         
-                        file.tags?.forEach(tagId => {
-                          const tagIndex = tags.findIndex(t => t.id === tagId);
-                          if (tagIndex !== -1) {
-                            const tagX = 200 + (tagIndex % 3) * nodeGraphSettings.nodeDistance * 2;
-                            const tagY = 150 + Math.floor(tagIndex / 3) * nodeGraphSettings.nodeDistance;
-                            
-                            connections.push({
-                              x1: fileX,
-                              y1: fileY,
-                              x2: tagX,
-                              y2: tagY,
-                              type: 'file-tag'
-                            });
-                          }
-                        });
+                        // Vary radius for more interesting layout
+                        const baseRadius = 180;
+                        const radiusVariation = Math.sin(index * 3.1) * 40;
+                        const radius = baseRadius + radiusVariation;
+                        
+                        const x = centerX + Math.cos(angle) * radius;
+                        const y = centerY + Math.sin(angle) * radius;
+                        tagPositions.set(tag.id, { x, y, tag });
                       });
                       
-                      // File to file connections via shared tags
-                      for (let i = 0; i < textFiles.length; i++) {
-                        for (let j = i + 1; j < textFiles.length; j++) {
-                          const file1 = textFiles[i];
-                          const file2 = textFiles[j];
-                          const sharedTags = file1.tags?.filter(tag => file2.tags?.includes(tag)) || [];
+                      // Position files in 360° around their primary tags
+                      textFiles.forEach((file, fileIndex) => {
+                        if (file.tags && file.tags.length > 0) {
+                          // Get primary tag (first tag or most central one)
+                          const primaryTagId = file.tags[0];
+                          const primaryTagPos = tagPositions.get(primaryTagId);
                           
-                          if (sharedTags.length > 0) {
-                            const x1 = 100 + (i % 6) * nodeGraphSettings.nodeDistance;
-                            const y1 = 350 + Math.floor(i / 6) * nodeGraphSettings.nodeDistance;
-                            const x2 = 100 + (j % 6) * nodeGraphSettings.nodeDistance;
-                            const y2 = 350 + Math.floor(j / 6) * nodeGraphSettings.nodeDistance;
+                          if (primaryTagPos) {
+                            // Calculate angle from center to primary tag
+                            const tagAngle = Math.atan2(primaryTagPos.y - centerY, primaryTagPos.x - centerX);
                             
-                            connections.push({
-                              x1, y1, x2, y2,
-                              strength: sharedTags.length,
-                              type: 'file-file'
-                            });
+                            // Distribute files around the tag in 360° 
+                            const filesWithSameTag = textFiles.filter(f => f.tags?.includes(primaryTagId));
+                            const fileIndexInTag = filesWithSameTag.findIndex(f => f.id === file.id);
+                            const totalFilesForTag = filesWithSameTag.length;
+                            
+                            // Create a circle around the tag
+                            const fileAngleOffset = (fileIndexInTag / Math.max(1, totalFilesForTag)) * 2 * Math.PI;
+                            const finalAngle = tagAngle + fileAngleOffset + (Math.PI / 4); // offset from tag
+                            
+                            // Distance from tag center
+                            const distanceFromTag = nodeGraphSettings.nodeDistance * 0.8;
+                            const x = primaryTagPos.x + Math.cos(finalAngle) * distanceFromTag;
+                            const y = primaryTagPos.y + Math.sin(finalAngle) * distanceFromTag;
+                            
+                            filePositions.set(file.id, { x, y, file });
                           }
+                        } else {
+                          // Files without tags go in inner circle
+                          const untaggedFiles = textFiles.filter(f => !f.tags || f.tags.length === 0);
+                          const untaggedIndex = untaggedFiles.findIndex(f => f.id === file.id);
+                          const angle = (untaggedIndex / Math.max(1, untaggedFiles.length)) * 2 * Math.PI;
+                          const radius = 60;
+                          const x = centerX + Math.cos(angle) * radius;
+                          const y = centerY + Math.sin(angle) * radius;
+                          filePositions.set(file.id, { x, y, file });
                         }
-                      }
-                      
-                      return connections.map((conn, index) => (
-                        <line
-                          key={index}
-                          x1={conn.x1}
-                          y1={conn.y1}
-                          x2={conn.x2}
-                          y2={conn.y2}
-                          stroke="#f4c2c2"
-                          strokeWidth={conn.strength || 1.5}
-                          strokeOpacity={nodeGraphSettings.connectionOpacity * 0.4}
-                        />
-                      ));
-                    })()}
-                    
-                    {/* Render text file nodes */}
-                    {Object.values(boards).flatMap(board => 
-                      board.items?.filter(item => item.type === 'textfile') || []
-                    ).map((file, index) => {
-                      const x = 100 + (index % 6) * nodeGraphSettings.nodeDistance;
-                      const y = 350 + Math.floor(index / 6) * nodeGraphSettings.nodeDistance;
-                      
-                      // Find board containing this file
-                      const containingBoard = Object.values(boards).find(board => 
-                        board.items?.some(item => item.id === file.id)
-                      );
+                      });
                       
                       return (
-                        <g key={file.id}>
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r={nodeGraphSettings.nodeSize}
-                            fill="#f4c2c2"
-                            stroke="#ffffff"
-                            strokeWidth="2"
-                            className="cursor-pointer hover:fill-[#f5d2d2] transition-all duration-200"
-                            style={{
-                              filter: 'drop-shadow(0 2px 8px rgba(244, 194, 194, 0.3))',
-                              opacity: 0.9
-                            }}
-                            onDoubleClick={() => {
-                              // Navigate to board containing this file
-                              if (containingBoard) {
-                                setShowNodeGraph(false);
-                                const boardId = containingBoard.id;
-                                if (boardId !== currentBoard) {
-                                  setCurrentBoard(boardId);
-                                  setBoardHierarchy(prev => [...prev, boardId]);
-                                }
+                        <>
+                          {/* Render connections first (behind nodes) */}
+                          {Array.from(filePositions.values()).map(filePos => {
+                            const connections = [];
+                            
+                            // File to tag connections
+                            filePos.file.tags?.forEach(tagId => {
+                              const tagPos = tagPositions.get(tagId);
+                              if (tagPos) {
+                                connections.push(
+                                  <line
+                                    key={`file-tag-${filePos.file.id}-${tagId}`}
+                                    x1={filePos.x}
+                                    y1={filePos.y}
+                                    x2={tagPos.x}
+                                    y2={tagPos.y}
+                                    stroke="#f4c2c2"
+                                    strokeWidth="1.5"
+                                    strokeOpacity={nodeGraphSettings.connectionOpacity * 0.4}
+                                  />
+                                );
                               }
-                            }}
-                          />
-                          <text
-                            x={x}
-                            y={y + nodeGraphSettings.nodeSize + 15}
-                            textAnchor="middle"
-                            className="text-white fill-current font-medium"
-                            style={{ 
-                              fontSize: `${nodeGraphSettings.textSize}px`,
-                              textShadow: '0 1px 3px rgba(0,0,0,0.8)'
-                            }}
-                          >
-                            {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
-                          </text>
-                        </g>
+                            });
+                            
+                            return connections;
+                          })}
+                          
+                          {/* File to file connections via shared tags */}
+                          {Array.from(filePositions.values()).map((filePos1, i) => {
+                            return Array.from(filePositions.values()).slice(i + 1).map((filePos2, j) => {
+                              const sharedTags = filePos1.file.tags?.filter(tag => filePos2.file.tags?.includes(tag)) || [];
+                              
+                              if (sharedTags.length > 0) {
+                                return (
+                                  <line
+                                    key={`file-file-${filePos1.file.id}-${filePos2.file.id}`}
+                                    x1={filePos1.x}
+                                    y1={filePos1.y}
+                                    x2={filePos2.x}
+                                    y2={filePos2.y}
+                                    stroke="#f4c2c2"
+                                    strokeWidth={Math.min(sharedTags.length * 0.8, 3)}
+                                    strokeOpacity={nodeGraphSettings.connectionOpacity * 0.6}
+                                  />
+                                );
+                              }
+                              return null;
+                            });
+                          })}
+                          
+                          {/* Render tag nodes */}
+                          {Array.from(tagPositions.values()).map(({ x, y, tag }) => (
+                            <g key={`tag-${tag.id}`}>
+                              <rect
+                                x={x - 15}
+                                y={y - 10}
+                                width="30"
+                                height="20"
+                                rx="4"
+                                fill={tag.color}
+                                stroke="#1a1a1a"
+                                strokeWidth="2"
+                                className="cursor-pointer"
+                              />
+                              <text
+                                x={x}
+                                y={y + nodeGraphSettings.nodeSize + 15}
+                                textAnchor="middle"
+                                className="text-white fill-current"
+                                style={{ fontSize: `${nodeGraphSettings.textSize}px` }}
+                              >
+                                {tag.name.length > 8 ? tag.name.slice(0, 8) + '...' : tag.name}
+                              </text>
+                            </g>
+                          ))}
+                          
+                          {/* Render text file nodes */}
+                          {Array.from(filePositions.values()).map(({ x, y, file }) => {
+                            // Find board containing this file
+                            const containingBoard = Object.values(boards).find(board => 
+                              board.items?.some(item => item.id === file.id)
+                            );
+                            
+                            return (
+                              <g key={file.id}>
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r={nodeGraphSettings.nodeSize}
+                                  fill="#f4c2c2"
+                                  stroke="#ffffff"
+                                  strokeWidth="2"
+                                  className="cursor-pointer hover:fill-[#f5d2d2] transition-all duration-200"
+                                  style={{
+                                    filter: 'drop-shadow(0 2px 8px rgba(244, 194, 194, 0.3))',
+                                    opacity: 0.9
+                                  }}
+                                  onDoubleClick={() => {
+                                    // Navigate to board containing this file
+                                    if (containingBoard) {
+                                      setShowNodeGraph(false);
+                                      const boardId = Object.keys(boards).find(key => boards[key] === containingBoard);
+                                      if (boardId) {
+                                        setCurrentBoard(boardId);
+                                      }
+                                    }
+                                  }}
+                                />
+                                <text
+                                  x={x}
+                                  y={y + nodeGraphSettings.nodeSize + 15}
+                                  textAnchor="middle"
+                                  className="text-white fill-current font-medium"
+                                  style={{ 
+                                    fontSize: `${nodeGraphSettings.textSize}px`,
+                                    textShadow: '0 1px 3px rgba(0,0,0,0.8)'
+                                  }}
+                                >
+                                  {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </>
                       );
-                    })}
+                    })()}
                   </svg>
                 </div>
               </div>
@@ -1893,6 +1946,7 @@ const MilanoteClone = () => {
                         type="range"
                         min="80"
                         max="200"
+                        step="1"
                         value={nodeGraphSettings.nodeDistance}
                         onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeDistance: parseInt(e.target.value) }))}
                         className="w-full"
@@ -1905,6 +1959,7 @@ const MilanoteClone = () => {
                         type="range"
                         min="8"
                         max="16"
+                        step="1"
                         value={nodeGraphSettings.textSize}
                         onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, textSize: parseInt(e.target.value) }))}
                         className="w-full"
@@ -1930,6 +1985,7 @@ const MilanoteClone = () => {
                         type="range"
                         min="15"
                         max="30"
+                        step="1"
                         value={nodeGraphSettings.nodeSize}
                         onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeSize: parseInt(e.target.value) }))}
                         className="w-full"
@@ -2226,7 +2282,7 @@ const MilanoteClone = () => {
                 onClick={() => {
                   setShowTagSelectionModal(false);
                   setSelectedTags([]);
-                  setEditingItem(null);
+                  setEditingItemForTags(null);
                   setPendingTextFileImport(null);
                 }}
                 className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
@@ -2251,18 +2307,18 @@ const MilanoteClone = () => {
                     setPendingImagePosition(null);
                     setPendingTextFileImport(null);
                     saveToHistory();
-                  } else if (editingItem) {
+                  } else if (editingItemForTags) {
                     // Update existing item tags
                     setBoards(prev => ({
                       ...prev,
                       [currentBoard]: {
                         ...prev[currentBoard],
                         items: prev[currentBoard].items.map(i =>
-                          i.id === editingItem.id ? { ...i, tags: selectedTags } : i
+                          i.id === editingItemForTags.id ? { ...i, tags: selectedTags } : i
                         )
                       }
                     }));
-                    setEditingItem(null);
+                    setEditingItemForTags(null);
                     saveToHistory();
                   }
                   setShowTagSelectionModal(false);
