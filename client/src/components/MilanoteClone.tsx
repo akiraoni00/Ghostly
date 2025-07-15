@@ -107,7 +107,7 @@ const MilanoteClone = () => {
   const exportProject = async () => {
     setIsExporting(true);
     try {
-      // Create a comprehensive data structure with all application state
+      // Create a comprehensive data structure with ALL application state
       const projectData = {
         version: "1.0.0",
         timestamp: new Date().toISOString(),
@@ -119,11 +119,51 @@ const MilanoteClone = () => {
           pan,
           currentBoard,
           boardHierarchy,
-          nodeGraphSettings
+          nodeGraphSettings,
+          showNodeGraph,
+          selectedTool,
+          history: history.slice(-50), // Keep last 50 history items
+          historyIndex
+        },
+        ui: {
+          contextMenu,
+          editingItem,
+          pendingImagePosition,
+          draggedItem,
+          isDragging,
+          dragOffset,
+          isPanning,
+          panStart,
+          isNodeGraphPanning,
+          nodeGraphPanStart,
+          showTagManager,
+          showTagSelectionModal,
+          showColorPicker,
+          showTagNameInput,
+          selectedTags,
+          editingItemForTags,
+          colorPickerTag,
+          draggingEditor,
+          editorDragOffset
+        },
+        localStorage: {
+          'ghostly-boards': JSON.stringify(boards),
+          'ghostly-tags': JSON.stringify(tags),
+          'ghostly-currentBoard': JSON.stringify(currentBoard),
+          'ghostly-boardHierarchy': JSON.stringify(boardHierarchy),
+          'ghostly-zoom': JSON.stringify(zoom),
+          'ghostly-pan': JSON.stringify(pan),
+          'ghostly-nodeGraphSettings': JSON.stringify(nodeGraphSettings),
+          'ghostly-openEditors': JSON.stringify(openEditors)
         },
         metadata: {
           totalBoards: Object.keys(boards).length,
           totalTags: tags.length,
+          totalItems: Object.values(boards).reduce((sum, board) => sum + board.items.length, 0),
+          totalTextFiles: Object.values(boards).reduce((sum, board) => 
+            sum + board.items.filter(item => item.type === 'textFile').length, 0),
+          totalConnections: Object.values(boards).reduce((sum, board) => 
+            sum + board.items.filter(item => item.type === 'line').length, 0),
           exportedAt: new Date().toLocaleString()
         }
       };
@@ -263,7 +303,7 @@ Keep this folder safe as a backup of your work!
         throw new Error('Invalid project file format');
       }
 
-      setImportProgress('Importing boards...');
+      setImportProgress('Importing boards and items...');
       setBoards(data.boards);
       
       setImportProgress('Importing tags...');
@@ -279,34 +319,73 @@ Keep this folder safe as a backup of your work!
         if (data.settings.boardHierarchy) setBoardHierarchy(data.settings.boardHierarchy);
         if (data.settings.nodeGraphSettings) setNodeGraphSettings(data.settings.nodeGraphSettings);
         if (data.settings.openEditors) setOpenEditors(data.settings.openEditors);
+        if (data.settings.showNodeGraph !== undefined) setShowNodeGraph(data.settings.showNodeGraph);
+        if (data.settings.selectedTool) setSelectedTool(data.settings.selectedTool);
+        if (data.settings.history) setHistory(data.settings.history);
+        if (data.settings.historyIndex !== undefined) setHistoryIndex(data.settings.historyIndex);
+      }
+
+      setImportProgress('Restoring UI state...');
+      if (data.ui) {
+        // Reset all UI state to clean state
+        setContextMenu(null);
+        setEditingItem(null);
+        setPendingImagePosition(null);
+        setDraggedItem(null);
+        setIsDragging(false);
+        setDragOffset({ x: 0, y: 0 });
+        setIsPanning(false);
+        setPanStart({ x: 0, y: 0 });
+        setIsNodeGraphPanning(false);
+        setNodeGraphPanStart({ x: 0, y: 0 });
+        setShowTagManager(false);
+        setShowTagSelectionModal(false);
+        setShowColorPicker(false);
+        setShowTagNameInput(false);
+        setSelectedTags([]);
+        setEditingItemForTags(null);
+        setColorPickerTag(null);
+        setDraggingEditor(null);
+        setEditorDragOffset({ x: 0, y: 0 });
       }
 
       setImportProgress('Saving to local storage...');
-      // Update localStorage with imported data
-      localStorage.setItem('ghostly-boards', JSON.stringify(data.boards));
-      localStorage.setItem('ghostly-tags', JSON.stringify(data.tags || []));
-      localStorage.setItem('ghostly-currentBoard', JSON.stringify(data.settings?.currentBoard || 'home'));
-      localStorage.setItem('ghostly-boardHierarchy', JSON.stringify(data.settings?.boardHierarchy || ['home']));
-      localStorage.setItem('ghostly-zoom', JSON.stringify(data.settings?.zoom || 1));
-      localStorage.setItem('ghostly-pan', JSON.stringify(data.settings?.pan || { x: 0, y: 0 }));
+      // Update localStorage with imported data using the complete localStorage backup
+      if (data.localStorage) {
+        Object.entries(data.localStorage).forEach(([key, value]) => {
+          localStorage.setItem(key, value);
+        });
+      } else {
+        // Fallback to manual localStorage update
+        localStorage.setItem('ghostly-boards', JSON.stringify(data.boards));
+        localStorage.setItem('ghostly-tags', JSON.stringify(data.tags || []));
+        localStorage.setItem('ghostly-currentBoard', JSON.stringify(data.settings?.currentBoard || 'home'));
+        localStorage.setItem('ghostly-boardHierarchy', JSON.stringify(data.settings?.boardHierarchy || ['home']));
+        localStorage.setItem('ghostly-zoom', JSON.stringify(data.settings?.zoom || 1));
+        localStorage.setItem('ghostly-pan', JSON.stringify(data.settings?.pan || { x: 0, y: 0 }));
+        localStorage.setItem('ghostly-nodeGraphSettings', JSON.stringify(data.settings?.nodeGraphSettings || {}));
+        localStorage.setItem('ghostly-openEditors', JSON.stringify(data.settings?.openEditors || []));
+      }
 
-      setImportProgress('Complete!');
+      setImportProgress('Finalizing import...');
       
       // Save current state to history
       saveToHistory();
+      
+      setImportProgress('Complete!');
       
       setTimeout(() => {
         setIsImporting(false);
         setImportProgress('');
         setShowSaveLoadModal(false);
-        alert('Project imported successfully!');
+        alert(`Project imported successfully!\n\nRestored:\n- ${data.metadata?.totalBoards || 0} boards\n- ${data.metadata?.totalTags || 0} tags\n- ${data.metadata?.totalItems || 0} items\n- ${data.metadata?.totalTextFiles || 0} text files\n- ${data.metadata?.totalConnections || 0} connections`);
       }, 500);
 
     } catch (error) {
       console.error('Import failed:', error);
       setIsImporting(false);
       setImportProgress('');
-      alert('Import failed. Please check your file and try again.');
+      alert(`Import failed: ${error.message}\n\nPlease check your file and try again.`);
     }
   };
 
@@ -314,6 +393,24 @@ Keep this folder safe as a backup of your work!
     const file = event.target.files[0];
     if (file) {
       importProject(file);
+    }
+  };
+
+  // Function to recover from auto-saved data
+  const recoverFromAutoSave = () => {
+    try {
+      const autoSaveData = localStorage.getItem('ghostly-autosave');
+      if (autoSaveData) {
+        const data = JSON.parse(autoSaveData);
+        if (confirm(`Auto-saved data found from ${data.metadata?.lastAutoSave}.\n\nRecover:\n- ${data.metadata?.totalBoards || 0} boards\n- ${data.metadata?.totalTags || 0} tags\n- ${data.metadata?.totalItems || 0} items\n\nDo you want to recover this data?`)) {
+          importProject({ text: () => Promise.resolve(JSON.stringify(data)) });
+        }
+      } else {
+        alert('No auto-saved data found.');
+      }
+    } catch (error) {
+      console.error('Failed to recover auto-save:', error);
+      alert('Failed to recover auto-saved data.');
     }
   };
 
@@ -438,6 +535,57 @@ Keep this folder safe as a backup of your work!
       console.warn('Failed to save node positions to localStorage:', error);
     }
   }, [nodePositions]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-nodeGraphSettings', JSON.stringify(nodeGraphSettings));
+    } catch (error) {
+      console.warn('Failed to save nodeGraphSettings to localStorage:', error);
+    }
+  }, [nodeGraphSettings]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-openEditors', JSON.stringify(openEditors));
+    } catch (error) {
+      console.warn('Failed to save openEditors to localStorage:', error);
+    }
+  }, [openEditors]);
+
+  // Auto-save complete project state periodically
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      try {
+        const autoSaveData = {
+          version: "1.0.0",
+          timestamp: new Date().toISOString(),
+          boards,
+          tags,
+          openEditors,
+          settings: {
+            zoom,
+            pan,
+            currentBoard,
+            boardHierarchy,
+            nodeGraphSettings,
+            showNodeGraph,
+            selectedTool
+          },
+          metadata: {
+            totalBoards: Object.keys(boards).length,
+            totalTags: tags.length,
+            totalItems: Object.values(boards).reduce((sum, board) => sum + board.items.length, 0),
+            lastAutoSave: new Date().toLocaleString()
+          }
+        };
+        localStorage.setItem('ghostly-autosave', JSON.stringify(autoSaveData));
+      } catch (error) {
+        console.warn('Auto-save failed:', error);
+      }
+    }, 30000); // Auto-save every 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [boards, tags, openEditors, zoom, pan, currentBoard, boardHierarchy, nodeGraphSettings, showNodeGraph, selectedTool]);
 
   // Create new item based on selected tool
   const createItem = useCallback((x, y, type = selectedTool) => {
@@ -2711,6 +2859,12 @@ Keep this folder safe as a backup of your work!
                 <p className="text-gray-400 text-sm mb-3">
                   Download all your boards, notes, tags, and settings as backup files
                 </p>
+                <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
+                  <div className="text-xs text-gray-400">Current Project:</div>
+                  <div className="text-white text-sm">
+                    {Object.keys(boards).length} boards • {tags.length} tags • {Object.values(boards).reduce((sum, board) => sum + board.items.length, 0)} items
+                  </div>
+                </div>
                 <button
                   onClick={exportProject}
                   disabled={isExporting}
@@ -2747,13 +2901,22 @@ Keep this folder safe as a backup of your work!
                     )}
                   </div>
                 ) : (
-                  <button
-                    onClick={() => projectFolderInputRef.current?.click()}
-                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
-                  >
-                    <Upload size={16} />
-                    <span>Import Project</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => projectFolderInputRef.current?.click()}
+                      className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
+                    >
+                      <Upload size={16} />
+                      <span>Import Project</span>
+                    </button>
+                    <button
+                      onClick={recoverFromAutoSave}
+                      className="w-full flex items-center justify-center space-x-2 bg-[#1a1a1a] text-gray-400 rounded-lg px-4 py-2 hover:bg-[#2d2d2d] hover:text-white transition-colors border border-gray-600"
+                    >
+                      <Save size={16} />
+                      <span>Recover Auto-Save</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
