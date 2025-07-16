@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move } from 'lucide-react';
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -20,7 +20,7 @@ const MilanoteClone = () => {
     const savedCurrentBoard = localStorage.getItem('ghostly-currentBoard');
     return savedCurrentBoard ? JSON.parse(savedCurrentBoard) : 'home';
   });
-  const [selectedTool, setSelectedTool] = useState('select');
+  const [selectedTool, setSelectedTool] = useState('hand');
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [draggedItem, setDraggedItem] = useState(null);
@@ -73,9 +73,14 @@ const MilanoteClone = () => {
   const [isNodeGraphPanning, setIsNodeGraphPanning] = useState(false);
   const [nodeGraphPanStart, setNodeGraphPanStart] = useState({ x: 0, y: 0 });
   const [showTagManager, setShowTagManager] = useState(false);
-  const [selectedItems, setSelectedItems] = useState([]);
   const [rectangleSelection, setRectangleSelection] = useState(null);
   const [isRectangleSelecting, setIsRectangleSelecting] = useState(false);
+  const [rectangleSelectionStart, setRectangleSelectionStart] = useState(null);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectionOffsets, setSelectionOffsets] = useState([]);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeHandle, setResizeHandle] = useState(null);
+  const [resizeStart, setResizeStart] = useState(null);
   const [draggedItems, setDraggedItems] = useState([]);
   const [multiDragOffset, setMultiDragOffset] = useState({ x: 0, y: 0 });
   const [noteColorPicker, setNoteColorPicker] = useState({ show: false, x: 0, y: 0, itemId: null });
@@ -1052,63 +1057,131 @@ const MilanoteClone = () => {
       const canvasX = (x - pan.x) / zoom;
       const canvasY = (y - pan.y) / zoom;
       
-      // Check if clicking on selected items group
-      if (selectedItems.includes(item.id)) {
-        // Start multi-item drag
-        const selectedItemsData = boards[currentBoard].items.filter(boardItem => selectedItems.includes(boardItem.id));
-        setDraggedItems(selectedItemsData);
-        setMultiDragOffset({
-          x: canvasX - item.x,
-          y: canvasY - item.y
-        });
-        setIsDragging(true);
-      } else {
-        // Single item drag
-        setDragOffset({ x: canvasX - item.x, y: canvasY - item.y });
-        setDraggedItem(item);
-        setIsDragging(true);
-        // Clear selection when clicking outside selected items
-        setSelectedItems([]);
+      // Hand tool - always pans regardless of item
+      if (selectedTool === 'hand') {
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        return;
       }
       
-      // Check if clicking on a line for editing
-      if (item.type === 'line') {
-        setEditingLine(item.id);
+      // Select tool - handle item selection and dragging
+      if (selectedTool === 'select') {
+        // Check if clicking on selected items group
+        if (selectedItems.includes(item.id)) {
+          // Start multi-item drag - calculate offsets for smooth dragging
+          const selectedItemsData = boards[currentBoard].items.filter(boardItem => selectedItems.includes(boardItem.id));
+          const offsets = selectedItemsData.map(selectedItem => ({
+            id: selectedItem.id,
+            offsetX: canvasX - selectedItem.x,
+            offsetY: canvasY - selectedItem.y
+          }));
+          setSelectionOffsets(offsets);
+          setIsDragging(true);
+        } else {
+          // Single item selection and drag
+          setSelectedItems([item.id]);
+          setDragOffset({ x: canvasX - item.x, y: canvasY - item.y });
+          setDraggedItem(item);
+          setIsDragging(true);
+        }
+        
+        // Check if clicking on a line for editing
+        if (item.type === 'line') {
+          setEditingLine(item.id);
+        }
+        
+        setContextMenu(null);
+        return;
       }
       
-      setContextMenu(null);
+      // For other tools, don't handle item clicks
+      return;
     } else {
+      // Empty space clicks
       if (selectedTool === 'line') {
         handleLineDrawing(e);
         return;
       }
       
-      if (selectedTool === 'rectangle-select') {
-        handleRectangleSelection(e);
+      if (selectedTool === 'select') {
+        // Start rectangle selection
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const canvasX = (x - pan.x) / zoom;
+        const canvasY = (y - pan.y) / zoom;
+        
+        setIsRectangleSelecting(true);
+        setRectangleSelectionStart({ x: canvasX, y: canvasY });
+        setRectangleSelection({ x: canvasX, y: canvasY, width: 0, height: 0 });
+        
+        // Clear previous selection
+        setSelectedItems([]);
         return;
       }
       
-      if (selectedTool !== 'select') {
+      if (selectedTool === 'hand') {
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        return;
+      }
+      
+      // For other tools, create items
+      if (selectedTool !== 'select' && selectedTool !== 'hand') {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (rect) {
           createItem(e.clientX - rect.left, e.clientY - rect.top);
         }
         return;
       }
-      
-      if (e.button === 0 && selectedTool === 'select') {
-        setIsPanning(true);
-        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-        // Clear selection when clicking on empty space
-        setSelectedItems([]);
-      }
     }
-  }, [zoom, pan, selectedTool, selectedItems, boards, currentBoard, handleLineDrawing, handleRectangleSelection, createItem]);
+  }, [zoom, pan, selectedTool, selectedItems, boards, currentBoard, handleLineDrawing, createItem]);
 
   // Handle mouse move for dragging and panning
   const handleMouseMove = useCallback((e) => {
-    if (isDragging && draggedItems.length > 0) {
-      // Multi-item drag
+    if (isResizing && resizeStart) {
+      // Handle image resizing
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      
+      const aspectRatio = resizeStart.width / resizeStart.height;
+      
+      let newWidth = resizeStart.width;
+      let newHeight = resizeStart.height;
+      
+      // Proportional resizing based on handle
+      if (resizeHandle === 'bottom-right') {
+        newWidth = Math.max(50, resizeStart.width + deltaX / zoom);
+        newHeight = newWidth / aspectRatio;
+      } else if (resizeHandle === 'bottom-left') {
+        newWidth = Math.max(50, resizeStart.width - deltaX / zoom);
+        newHeight = newWidth / aspectRatio;
+      } else if (resizeHandle === 'top-right') {
+        newWidth = Math.max(50, resizeStart.width + deltaX / zoom);
+        newHeight = newWidth / aspectRatio;
+      } else if (resizeHandle === 'top-left') {
+        newWidth = Math.max(50, resizeStart.width - deltaX / zoom);
+        newHeight = newWidth / aspectRatio;
+      }
+      
+      // Update the selected image's dimensions
+      setBoards(prev => ({
+        ...prev,
+        [currentBoard]: {
+          ...prev[currentBoard],
+          items: prev[currentBoard].items.map(item => {
+            if (selectedItems.includes(item.id) && item.type === 'image') {
+              return { ...item, width: newWidth, height: newHeight };
+            }
+            return item;
+          })
+        }
+      }));
+    } else if (isRectangleSelecting) {
+      // Update rectangle selection
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
       
@@ -1118,14 +1191,25 @@ const MilanoteClone = () => {
       const canvasX = (x - pan.x) / zoom;
       const canvasY = (y - pan.y) / zoom;
       
-      // Calculate new position for the reference item
-      const referenceItem = draggedItems[0];
-      const newRefX = canvasX - multiDragOffset.x;
-      const newRefY = canvasY - multiDragOffset.y;
+      const width = canvasX - rectangleSelectionStart.x;
+      const height = canvasY - rectangleSelectionStart.y;
       
-      // Calculate delta movement from reference item's original position
-      const deltaX = newRefX - referenceItem.x;
-      const deltaY = newRefY - referenceItem.y;
+      setRectangleSelection({
+        x: width < 0 ? canvasX : rectangleSelectionStart.x,
+        y: height < 0 ? canvasY : rectangleSelectionStart.y,
+        width: Math.abs(width),
+        height: Math.abs(height)
+      });
+    } else if (isDragging && selectedItems.length > 0 && selectionOffsets.length > 0) {
+      // Multi-item drag with proper offset handling
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const canvasX = (x - pan.x) / zoom;
+      const canvasY = (y - pan.y) / zoom;
       
       setBoards(prev => ({
         ...prev,
@@ -1133,8 +1217,10 @@ const MilanoteClone = () => {
           ...prev[currentBoard],
           items: prev[currentBoard].items.map(item => {
             if (selectedItems.includes(item.id)) {
-              const originalItem = draggedItems.find(di => di.id === item.id);
-              return { ...item, x: originalItem.x + deltaX, y: originalItem.y + deltaY };
+              const offset = selectionOffsets.find(o => o.id === item.id);
+              if (offset) {
+                return { ...item, x: canvasX - offset.offsetX, y: canvasY - offset.offsetY };
+              }
             }
             return item;
           })
@@ -1166,20 +1252,50 @@ const MilanoteClone = () => {
         y: e.clientY - panStart.y
       });
     }
-  }, [isDragging, draggedItem, dragOffset, currentBoard, isPanning, panStart, zoom, pan]);
+  }, [isDragging, draggedItem, dragOffset, currentBoard, isPanning, panStart, zoom, pan, isRectangleSelecting, rectangleSelectionStart, selectedItems, selectionOffsets, isResizing, resizeStart, resizeHandle]);
 
   // Handle mouse up for dragging and panning
   const handleMouseUp = useCallback(() => {
+    if (isResizing) {
+      setIsResizing(false);
+      setResizeHandle(null);
+      setResizeStart(null);
+      saveToHistory();
+    }
+    
+    if (isRectangleSelecting) {
+      // Complete rectangle selection
+      if (rectangleSelection) {
+        const selectedIds = boards[currentBoard].items.filter(item => {
+          const itemCenterX = item.x + (item.width || 0) / 2;
+          const itemCenterY = item.y + (item.height || 0) / 2;
+          
+          return (
+            itemCenterX >= rectangleSelection.x &&
+            itemCenterX <= rectangleSelection.x + rectangleSelection.width &&
+            itemCenterY >= rectangleSelection.y &&
+            itemCenterY <= rectangleSelection.y + rectangleSelection.height
+          );
+        }).map(item => item.id);
+        
+        setSelectedItems(selectedIds);
+      }
+      
+      setIsRectangleSelecting(false);
+      setRectangleSelection(null);
+      setRectangleSelectionStart(null);
+    }
+    
     if (isDragging) {
       setIsDragging(false);
       setDraggedItem(null);
-      setDraggedItems([]);
+      setSelectionOffsets([]);
       saveToHistory();
     }
     if (isPanning) {
       setIsPanning(false);
     }
-  }, [isDragging, isPanning, saveToHistory]);
+  }, [isDragging, isPanning, saveToHistory, isRectangleSelecting, rectangleSelection, boards, currentBoard, isResizing]);
 
   // Handle mouse wheel for zooming
   const handleWheel = useCallback((e) => {
@@ -1574,12 +1690,8 @@ const MilanoteClone = () => {
 
   // Tool components
   const tools = [
+    { id: 'hand', icon: Hand, label: 'Hand Tool' },
     { id: 'select', icon: MousePointer, label: 'Select' },
-    { id: 'rectangle-select', icon: () => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="5,5" />
-      </svg>
-    ), label: 'Rectangle Select' },
     { id: 'board', icon: Square, label: 'Board' },
     { id: 'textfile', icon: FilePlus, label: 'New Text File' },
     { id: 'textfile-import', icon: Upload, label: 'Import Text File' },
@@ -1757,9 +1869,10 @@ const MilanoteClone = () => {
             ref={canvasRef}
             className="w-full h-full bg-black"
             style={{
-              cursor: selectedTool === 'select' && !isDragging ? (isPanning ? 'grabbing' : 'grab') 
+              cursor: selectedTool === 'hand' ? (isPanning ? 'grabbing' : 'grab') 
+                     : selectedTool === 'select' ? 'default'
                      : selectedTool === 'line' ? 'crosshair' 
-                     : selectedTool !== 'select' ? 'crosshair' 
+                     : selectedTool !== 'select' && selectedTool !== 'hand' ? 'crosshair' 
                      : 'default'
             }}
             onClick={handleCanvasClick}
@@ -1775,6 +1888,23 @@ const MilanoteClone = () => {
             >
               {currentBoardData?.items.map((item) => (
                 <div key={item.id}>
+                  {/* Selection highlight */}
+                  {selectedItems.includes(item.id) && (
+                    <div
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: item.x - 4,
+                        top: item.y - 4,
+                        width: item.width + 8,
+                        height: item.height + 8,
+                        border: '2px solid #f4c2c2',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(244, 194, 194, 0.1)',
+                        zIndex: 1000
+                      }}
+                    />
+                  )}
+                  
                   {/* Main item */}
                   <div
                     className="absolute select-none"
@@ -1943,12 +2073,75 @@ const MilanoteClone = () => {
                     )}
                     
                     {item.type === 'image' && (
-                      <div className="w-full h-full rounded-lg shadow-xl cursor-pointer overflow-hidden hover:shadow-2xl transition-shadow border-2 border-transparent hover:border-[#f4c2c2]">
+                      <div className="w-full h-full rounded-lg shadow-xl cursor-pointer overflow-hidden hover:shadow-2xl transition-shadow border-2 border-transparent hover:border-[#f4c2c2] relative">
                         <img
                           src={item.src}
                           alt="Uploaded"
                           className="w-full h-full object-cover rounded-lg"
                         />
+                        
+                        {/* Resize handles for selected images */}
+                        {selectedItems.includes(item.id) && (
+                          <>
+                            {/* Corner resize handles */}
+                            <div 
+                              className="absolute -bottom-2 -right-2 w-4 h-4 bg-[#f4c2c2] border-2 border-white rounded-full cursor-nw-resize"
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setIsResizing(true);
+                                setResizeHandle('bottom-right');
+                                setResizeStart({ 
+                                  x: e.clientX, 
+                                  y: e.clientY, 
+                                  width: item.width, 
+                                  height: item.height 
+                                });
+                              }}
+                            />
+                            <div 
+                              className="absolute -bottom-2 -left-2 w-4 h-4 bg-[#f4c2c2] border-2 border-white rounded-full cursor-ne-resize"
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setIsResizing(true);
+                                setResizeHandle('bottom-left');
+                                setResizeStart({ 
+                                  x: e.clientX, 
+                                  y: e.clientY, 
+                                  width: item.width, 
+                                  height: item.height 
+                                });
+                              }}
+                            />
+                            <div 
+                              className="absolute -top-2 -right-2 w-4 h-4 bg-[#f4c2c2] border-2 border-white rounded-full cursor-sw-resize"
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setIsResizing(true);
+                                setResizeHandle('top-right');
+                                setResizeStart({ 
+                                  x: e.clientX, 
+                                  y: e.clientY, 
+                                  width: item.width, 
+                                  height: item.height 
+                                });
+                              }}
+                            />
+                            <div 
+                              className="absolute -top-2 -left-2 w-4 h-4 bg-[#f4c2c2] border-2 border-white rounded-full cursor-se-resize"
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setIsResizing(true);
+                                setResizeHandle('top-left');
+                                setResizeStart({ 
+                                  x: e.clientX, 
+                                  y: e.clientY, 
+                                  width: item.width, 
+                                  height: item.height 
+                                });
+                              }}
+                            />
+                          </>
+                        )}
                       </div>
                     )}
                     
@@ -2255,10 +2448,10 @@ const MilanoteClone = () => {
                 <div
                   className="absolute pointer-events-none border-2 border-dashed border-[#f4c2c2] bg-[#f4c2c2] bg-opacity-20"
                   style={{
-                    left: Math.min(rectangleSelection.startX, rectangleSelection.endX),
-                    top: Math.min(rectangleSelection.startY, rectangleSelection.endY),
-                    width: Math.abs(rectangleSelection.endX - rectangleSelection.startX),
-                    height: Math.abs(rectangleSelection.endY - rectangleSelection.startY)
+                    left: rectangleSelection.x,
+                    top: rectangleSelection.y,
+                    width: rectangleSelection.width,
+                    height: rectangleSelection.height
                   }}
                 />
               )}
@@ -2517,11 +2710,13 @@ const MilanoteClone = () => {
                     const x = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
                     const y = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
                     
-                    // Update position immediately without batching for smooth dragging
-                    setNodePositions(prev => {
-                      const newMap = new Map(prev);
-                      newMap.set(`${draggedNode.type}-${draggedNode.id}`, { x, y });
-                      return newMap;
+                    // Use requestAnimationFrame for smooth dragging performance
+                    requestAnimationFrame(() => {
+                      setNodePositions(prev => {
+                        const newMap = new Map(prev);
+                        newMap.set(`${draggedNode.type}-${draggedNode.id}`, { x, y });
+                        return newMap;
+                      });
                     });
                   } else if (isNodeGraphPanning) {
                     setNodeGraphPan({
@@ -2679,8 +2874,6 @@ const MilanoteClone = () => {
                                 height={nodeGraphSettings.tagSize * 1.2}
                                 rx="4"
                                 fill={tag.color}
-                                stroke="#ffffff"
-                                strokeWidth="2"
                                 className="cursor-move hover:opacity-80 transition-opacity"
                                 style={{
                                   filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
@@ -2735,8 +2928,6 @@ const MilanoteClone = () => {
                                   cy={y}
                                   r={nodeGraphSettings.nodeSize}
                                   fill="#f4c2c2"
-                                  stroke="#ffffff"
-                                  strokeWidth="2"
                                   className="cursor-move hover:fill-[#f5d2d2] transition-all duration-200"
                                   style={{
                                     filter: 'drop-shadow(0 2px 8px rgba(244, 194, 194, 0.3))',
