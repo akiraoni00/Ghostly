@@ -679,6 +679,24 @@ const MilanoteClone = () => {
     }
   }, [openEditors]);
 
+  // Save selected tool
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-selectedTool', JSON.stringify(selectedTool));
+    } catch (error) {
+      console.warn('Failed to save selectedTool to localStorage:', error);
+    }
+  }, [selectedTool]);
+
+  // Save editing line state
+  useEffect(() => {
+    try {
+      localStorage.setItem('ghostly-editingLine', JSON.stringify(editingLine));
+    } catch (error) {
+      console.warn('Failed to save editingLine to localStorage:', error);
+    }
+  }, [editingLine]);
+
   // Auto-save to favorite directory when enabled
   useEffect(() => {
     if (!autoSaveEnabled || !favoriteDirectory) return;
@@ -1101,6 +1119,7 @@ const MilanoteClone = () => {
         setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
         // Clear selection when clicking on empty space
         setSelectedItems([]);
+        setEditingLine(null);
       }
     }
   }, [zoom, pan, selectedTool, selectedItems, boards, currentBoard, handleLineDrawing, handleRectangleSelection, createItem]);
@@ -1576,7 +1595,7 @@ const MilanoteClone = () => {
   const tools = [
     { id: 'select', icon: MousePointer, label: 'Select' },
     { id: 'rectangle-select', icon: () => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="5,5" />
       </svg>
     ), label: 'Rectangle Select' },
@@ -1746,7 +1765,7 @@ const MilanoteClone = () => {
               }`}
               title={label}
             >
-              <Icon size={16} />
+              <Icon size={18} />
             </button>
           ))}
         </div>
@@ -1943,18 +1962,56 @@ const MilanoteClone = () => {
                     )}
                     
                     {item.type === 'image' && (
-                      <div className="w-full h-full rounded-lg shadow-xl cursor-pointer overflow-hidden hover:shadow-2xl transition-shadow border-2 border-transparent hover:border-[#f4c2c2]">
+                      <div className="w-full h-full rounded-lg shadow-xl cursor-pointer overflow-hidden hover:shadow-2xl transition-shadow border-2 border-transparent hover:border-[#f4c2c2] relative group">
                         <img
                           src={item.src}
                           alt="Uploaded"
                           className="w-full h-full object-cover rounded-lg"
+                        />
+                        {/* Resize handle */}
+                        <div
+                          className="absolute bottom-0 right-0 w-4 h-4 bg-[#f4c2c2] cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const startX = e.clientX;
+                            const startY = e.clientY;
+                            const startWidth = item.width;
+                            const startHeight = item.height;
+                            
+                            const handleResize = (moveEvent) => {
+                              const deltaX = moveEvent.clientX - startX;
+                              const deltaY = moveEvent.clientY - startY;
+                              const newWidth = Math.max(100, startWidth + deltaX);
+                              const newHeight = Math.max(100, startHeight + deltaY);
+                              
+                              setBoards(prev => ({
+                                ...prev,
+                                [currentBoard]: {
+                                  ...prev[currentBoard],
+                                  items: prev[currentBoard].items.map(i =>
+                                    i.id === item.id 
+                                      ? { ...i, width: newWidth, height: newHeight }
+                                      : i
+                                  )
+                                }
+                              }));
+                            };
+                            
+                            const handleResizeEnd = () => {
+                              document.removeEventListener('mousemove', handleResize);
+                              document.removeEventListener('mouseup', handleResizeEnd);
+                            };
+                            
+                            document.addEventListener('mousemove', handleResize);
+                            document.addEventListener('mouseup', handleResizeEnd);
+                          }}
                         />
                       </div>
                     )}
                     
                     {item.type === 'line' && (
                       <svg
-                        className="absolute pointer-events-none"
+                        className={`absolute ${editingLine === item.id ? 'pointer-events-auto' : 'pointer-events-none'}`}
                         style={{
                           left: 0,
                           top: 0,
@@ -1971,8 +2028,30 @@ const MilanoteClone = () => {
                           y2={item.endY - item.y}
                           stroke={item.color}
                           strokeWidth={item.strokeWidth}
-                          strokeDasharray="5,5"
+                          className="cursor-pointer"
                         />
+                        {editingLine === item.id && (
+                          <>
+                            <circle
+                              cx={item.startX - item.x}
+                              cy={item.startY - item.y}
+                              r="6"
+                              fill="#f4c2c2"
+                              stroke="#ffffff"
+                              strokeWidth="2"
+                              className="cursor-move"
+                            />
+                            <circle
+                              cx={item.endX - item.x}
+                              cy={item.endY - item.y}
+                              r="6"
+                              fill="#f4c2c2"
+                              stroke="#ffffff"
+                              strokeWidth="2"
+                              className="cursor-move"
+                            />
+                          </>
+                        )}
                       </svg>
                     )}
 
@@ -2517,10 +2596,17 @@ const MilanoteClone = () => {
                     const x = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
                     const y = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
                     
-                    // Update position immediately without batching for smooth dragging
+                    // Calculate drag offset for smooth dragging
+                    const dragOffsetX = draggedNode.startX - rect.left;
+                    const dragOffsetY = draggedNode.startY - rect.top;
+                    
+                    const adjustedX = x - (dragOffsetX / nodeGraphZoom);
+                    const adjustedY = y - (dragOffsetY / nodeGraphZoom);
+                    
+                    // Update position immediately for smooth dragging
                     setNodePositions(prev => {
                       const newMap = new Map(prev);
-                      newMap.set(`${draggedNode.type}-${draggedNode.id}`, { x, y });
+                      newMap.set(`${draggedNode.type}-${draggedNode.id}`, { x: adjustedX, y: adjustedY });
                       return newMap;
                     });
                   } else if (isNodeGraphPanning) {

@@ -138,4 +138,14 @@ Preferred communication style: Simple, everyday language.
 - **Self-Hosted Data Persistence**: Complete local data management without external dependencies
 - **Backup & Recovery**: Download latest backup functionality and manual save options for data security
 
+### UI/UX Polish & Bug Fixes (January 2025)
+- **Consistent Icon Sizes**: Standardized all toolbar icons to 18px for professional appearance
+- **Premium Selection Borders**: Replaced dotted borders with clean accent color highlights
+- **Smooth Multi-Item Dragging**: Fixed lag issues where selected items would drift during dragging
+- **Enhanced Node Graph**: Improved document dragging smoothness and increased canvas size to prevent clipping
+- **Interactive Line Tool**: Fixed line drawing with real-time preview and click-to-edit functionality
+- **Image Scaling**: Added resize handles for imported images with smooth scaling functionality
+- **Custom Color Picker**: Enhanced note color picker with custom color input alongside presets
+- **Comprehensive Saving**: Complete localStorage persistence for all workspace data including tool states
+
 The application now provides a robust, self-hosted experience with reliable data persistence through browser localStorage and file-based import/export, ensuring users never lose their work and can easily backup and restore their projects across sessions.
