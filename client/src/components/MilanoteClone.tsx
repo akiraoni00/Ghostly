@@ -3133,42 +3133,7 @@ Keep this folder safe as a backup of your work!
               </div>
             </div>
 
-            {/* Auto-Save Settings */}
-            <div className="border-t border-gray-700 pt-4">
-              <h4 className="text-white font-medium mb-2">Auto-Save Directory</h4>
-              <p className="text-gray-400 text-sm mb-3">
-                Set a project directory to automatically save changes every minute
-              </p>
-              {projectDirectory ? (
-                <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs text-gray-400">Current Directory:</div>
-                      <div className="text-white text-sm">{projectDirectory}</div>
-                      <div className="text-xs text-gray-500">
-                        Auto-save: {autoSaveEnabled ? 'Enabled' : 'Disabled'}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setProjectDirectory('');
-                        setAutoSaveEnabled(false);
-                        localStorage.removeItem('ghostly-projectDirectory');
-                        localStorage.removeItem('ghostly-autoSaveEnabled');
-                      }}
-                      className="text-gray-400 hover:text-white p-1"
-                      title="Clear directory"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-gray-500 text-sm mb-3">
-                  No directory set. Export your project to set up auto-save.
-                </div>
-              )}
-            </div>
+
 
             {/* Close Button */}
             <div className="flex justify-end mt-6">
