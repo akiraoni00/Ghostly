@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move } from 'lucide-react';
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -2728,6 +2728,195 @@ const MilanoteClone = () => {
         </div>
       ))}
 
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ZoomOut size={14} />
+                  </button>
+                  <span className="text-sm font-mono">{Math.round(nodeGraphZoom * 100)}%</span>
+                  <button 
+                    onClick={() => setNodeGraphZoom(Math.min(nodeGraphZoom * 1.2, 5))}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ZoomIn size={14} />
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowNodeGraphSettings(!showNodeGraphSettings)}
+                  className={`p-2 rounded transition-colors ${
+                    showNodeGraphSettings ? 'bg-[#f4c2c2] text-black' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Settings size={16} />
+                </button>
+                <button
+                  onClick={() => setShowNodeGraph(false)}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            
+                          
+                          {/* Remove file-to-file connections to reduce visual clutter */}
+                          
+                          {/* Render tag nodes - simple rounded rectangles */}
+                          {Array.from(tagPositions.values()).map(({ x, y, tag }) => (
+                            <g key={`tag-${tag.id}`} data-node-key={`tag-${tag.id}`}>
+                              <rect
+                                x={x - 30}
+                                y={y - 12}
+                                width="60"
+                                height="24"
+                                rx="12"
+                                fill={tag.color}
+                                className="cursor-move hover:opacity-80 transition-opacity"
+                                style={{
+                                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.3))',
+                                }}
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                  const rect = nodeGraphRef.current?.getBoundingClientRect();
+                                  if (rect) {
+                                    const nodeX = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
+                                    const nodeY = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
+                                    
+                                    setDraggedNodeId(`tag-${tag.id}`);
+                                    setDraggedNodeType('tag');
+                                    setDraggedNodeOffset({ x: nodeX - x, y: nodeY - y });
+                                  }
+                                }}
+                              />
+                              <text
+                                x={x}
+                                y={y + 4}
+                                textAnchor="middle"
+                                className="text-white fill-current font-medium pointer-events-none"
+                                style={{ 
+                                  fontSize: '12px',
+                                  textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                                }}
+                              >
+                                {tag.name.length > 8 ? tag.name.slice(0, 8) + '...' : tag.name}
+                              </text>
+                            </g>
+                          ))}
+                          
+                          {/* Render text file nodes - simple circles */}
+                          {Array.from(filePositions.values()).map(({ x, y, file }) => {
+                            const containingBoard = Object.values(boards).find(board => 
+                              board.items?.some(item => item.id === file.id)
+                            );
+                            
+                            return (
+                              <g key={file.id} data-node-key={`file-${file.id}`}>
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r="20"
+                                  fill="#f4c2c2"
+                                  className="cursor-move hover:fill-[#f5d2d2] transition-all duration-200"
+                                  style={{
+                                    filter: 'drop-shadow(0 2px 6px rgba(244, 194, 194, 0.3))',
+                                    opacity: 0.9
+                                  }}
+                                  onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                    const rect = nodeGraphRef.current?.getBoundingClientRect();
+                                    if (rect) {
+                                      const nodeX = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
+                                      const nodeY = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
+                                      
+                                      setDraggedNodeId(`file-${file.id}`);
+                                      setDraggedNodeType('file');
+                                      setDraggedNodeOffset({ x: nodeX - x, y: nodeY - y });
+                                    }
+                                  }}
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    if (containingBoard) {
+                                      setShowNodeGraph(false);
+                                      const boardId = Object.keys(boards).find(key => boards[key] === containingBoard);
+                                      if (boardId) {
+                                        setCurrentBoard(boardId);
+                                      }
+                                    }
+                                  }}
+                                />
+                                <text
+                                  x={x}
+                                  y={y + 35}
+                                  textAnchor="middle"
+                                  className="text-white fill-current font-medium pointer-events-none"
+                                  style={{ 
+                                    fontSize: '12px',
+                                    textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                                  }}
+                                >
+                                  {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+                  </svg>
+                </div>
+              </div>
+              
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.textSize}px</span>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-2">Connection Opacity</label>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1"
+                        step="0.05"
+                        value={nodeGraphSettings.connectionOpacity}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, connectionOpacity: parseFloat(e.target.value) }))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
+                      />
+                      <span className="text-gray-400 text-xs">{Math.round(nodeGraphSettings.connectionOpacity * 100)}%</span>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-2">Node Size</label>
+                      <input
+                        type="range"
+                        min="15"
+                        max="30"
+                        step="1"
+                        value={nodeGraphSettings.nodeSize}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeSize: parseInt(e.target.value) }))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.nodeSize}px</span>
+                    </div>
+
+                    <div>
+                      <label className="text-gray-300 text-sm block mb-2">Tag Size</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="25"
+                        step="1"
+                        value={nodeGraphSettings.tagSize}
+                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, tagSize: parseInt(e.target.value) }))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
+                      />
+                      <span className="text-gray-400 text-xs">{nodeGraphSettings.tagSize}px</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tag Prompt Modal */}
       {showTagPrompt && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
@@ -3220,13 +3409,11 @@ const MilanoteClone = () => {
                   {Object.entries(shortcuts).map(([action, key]) => (
                     <div key={action} className="flex items-center justify-between bg-[#2d2d2d] rounded p-3">
                       <span className="text-gray-300 text-sm capitalize">
-                        {action === 'textfile' ? 'Text File' : action.replace(/([A-Z])/g, ' $1')}
-                      </span>
-                      <button
-                        className="bg-[#1a1a1a] border border-gray-600 rounded px-2 py-1 text-[#f4c2c2] text-sm min-w-[48px] hover:border-[#f4c2c2] transition-colors"
-                      >
-                        {key.toUpperCase() || '?'}
-                      </button>
+                          className="bg-[#1a1a1a] border border-gray-600 rounded px-2 py-1 text-[#f4c2c2] text-sm min-w-[48px] hover:border-[#f4c2c2] transition-colors"
+                        >
+                          {key.toUpperCase() || '?'}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
