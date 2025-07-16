@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move } from 'lucide-react';
 
-const MilanoteClone = () => {
+const MilanoteClone = ({ ...props }) => {
   // Load initial state from localStorage or use default
   const [boards, setBoards] = useState(() => {
     const savedBoards = localStorage.getItem('ghostly-boards');
@@ -1084,10 +1084,26 @@ const MilanoteClone = () => {
       const canvasX = (x - pan.x) / zoom;
       const canvasY = (y - pan.y) / zoom;
       
-      // Hand tool - always pans regardless of item
+      // Hand tool - switch to select when touching an element
       if (selectedTool === 'hand') {
-        setIsPanning(true);
-        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        setSelectedTool('select');
+        
+        // Now handle as select tool
+        if (selectedItems.includes(item.id)) {
+          const selectedItemsData = boards[currentBoard].items.filter(boardItem => selectedItems.includes(boardItem.id));
+          const offsets = selectedItemsData.map(selectedItem => ({
+            id: selectedItem.id,
+            offsetX: canvasX - selectedItem.x,
+            offsetY: canvasY - selectedItem.y
+          }));
+          setSelectionOffsets(offsets);
+          setIsDragging(true);
+        } else {
+          setSelectedItems([item.id]);
+          setDragOffset({ x: canvasX - item.x, y: canvasY - item.y });
+          setDraggedItem(item);
+          setIsDragging(true);
+        }
         return;
       }
       
@@ -1169,11 +1185,13 @@ const MilanoteClone = () => {
         return;
       }
       
-      // For other tools, create items
+      // For other tools, create items and return to hand tool
       if (selectedTool !== 'select' && selectedTool !== 'hand') {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (rect) {
           createItem(e.clientX - rect.left, e.clientY - rect.top);
+          // Auto-return to hand tool after creating items
+          setSelectedTool('hand');
         }
         return;
       }
@@ -1307,15 +1325,19 @@ const MilanoteClone = () => {
       // Complete rectangle selection
       if (rectangleSelection) {
         const selectedIds = boards[currentBoard].items.filter(item => {
-          const itemCenterX = item.x + (item.width || 0) / 2;
-          const itemCenterY = item.y + (item.height || 0) / 2;
+          const itemLeft = item.x;
+          const itemRight = item.x + (item.width || 150);
+          const itemTop = item.y;
+          const itemBottom = item.y + (item.height || 100);
           
-          return (
-            itemCenterX >= rectangleSelection.x &&
-            itemCenterX <= rectangleSelection.x + rectangleSelection.width &&
-            itemCenterY >= rectangleSelection.y &&
-            itemCenterY <= rectangleSelection.y + rectangleSelection.height
-          );
+          const selectionLeft = rectangleSelection.x;
+          const selectionRight = rectangleSelection.x + rectangleSelection.width;
+          const selectionTop = rectangleSelection.y;
+          const selectionBottom = rectangleSelection.y + rectangleSelection.height;
+          
+          // Check for any overlap between item and selection rectangle
+          return !(itemRight < selectionLeft || itemLeft > selectionRight || 
+                   itemBottom < selectionTop || itemTop > selectionBottom);
         }).map(item => item.id);
         
         setSelectedItems(selectedIds);
@@ -1331,6 +1353,9 @@ const MilanoteClone = () => {
       setDraggedItem(null);
       setSelectionOffsets([]);
       saveToHistory();
+      
+      // Auto-return to hand tool after dragging
+      setSelectedTool('hand');
     }
     if (isPanning) {
       setIsPanning(false);
@@ -1788,7 +1813,7 @@ const MilanoteClone = () => {
   const currentBoardData = boards[currentBoard];
 
   return (
-    <div className="w-full h-screen bg-black text-white flex flex-col overflow-hidden">
+    <div className="w-full h-screen bg-black text-white flex flex-col overflow-hidden" {...props}>
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 h-12 bg-[#1a1a1a] border-b border-gray-800 z-50 flex items-center justify-between px-4">
         <div className="flex items-center space-x-4">
@@ -2824,72 +2849,38 @@ const MilanoteClone = () => {
                         board.items?.filter(item => item.type === 'textfile') || []
                       );
                       
-                      // Create organic positions for tags and files
+                      // Simple magnet-like layout
                       const tagPositions = new Map();
                       const filePositions = new Map();
                       const centerX = 500;
                       const centerY = 300;
                       
-                      // Position tags using custom positions or organic clusters
+                      // Position tags - use saved positions or scatter around center
                       tags.forEach((tag, index) => {
                         const customPos = nodePositions.get(`tag-${tag.id}`);
                         if (customPos) {
                           tagPositions.set(tag.id, { x: customPos.x, y: customPos.y, tag });
                         } else {
-                          const baseAngle = (index / tags.length) * 2 * Math.PI;
-                          // Add randomness for organic feel
-                          const angleVariation = (Math.sin(index * 2.3) * 0.8) + (Math.cos(index * 1.7) * 0.6);
-                          const angle = baseAngle + angleVariation;
-                          
-                          // Vary radius for more interesting layout
-                          const baseRadius = nodeGraphSettings.tagDistance;
-                          const radiusVariation = Math.sin(index * 3.1) * 40;
-                          const radius = baseRadius + radiusVariation;
-                          
-                          const x = centerX + Math.cos(angle) * radius;
-                          const y = centerY + Math.sin(angle) * radius;
+                          // Random scatter around center
+                          const angle = Math.random() * 2 * Math.PI;
+                          const distance = 100 + Math.random() * 200;
+                          const x = centerX + Math.cos(angle) * distance;
+                          const y = centerY + Math.sin(angle) * distance;
                           tagPositions.set(tag.id, { x, y, tag });
                         }
                       });
                       
-                      // Position files using custom positions or around their primary tags
+                      // Position files - use saved positions or scatter around center
                       textFiles.forEach((file, fileIndex) => {
                         const customPos = nodePositions.get(`file-${file.id}`);
                         if (customPos) {
                           filePositions.set(file.id, { x: customPos.x, y: customPos.y, file });
-                        } else if (file.tags && file.tags.length > 0) {
-                          // Get primary tag (first tag or most central one)
-                          const primaryTagId = file.tags[0];
-                          const primaryTagPos = tagPositions.get(primaryTagId);
-                          
-                          if (primaryTagPos) {
-                            // Calculate angle from center to primary tag
-                            const tagAngle = Math.atan2(primaryTagPos.y - centerY, primaryTagPos.x - centerX);
-                            
-                            // Distribute files around the tag in 360° 
-                            const filesWithSameTag = textFiles.filter(f => f.tags?.includes(primaryTagId));
-                            const fileIndexInTag = filesWithSameTag.findIndex(f => f.id === file.id);
-                            const totalFilesForTag = filesWithSameTag.length;
-                            
-                            // Create a circle around the tag
-                            const fileAngleOffset = (fileIndexInTag / Math.max(1, totalFilesForTag)) * 2 * Math.PI;
-                            const finalAngle = tagAngle + fileAngleOffset + (Math.PI / 4); // offset from tag
-                            
-                            // Distance from tag center
-                            const distanceFromTag = nodeGraphSettings.nodeDistance * 0.8;
-                            const x = primaryTagPos.x + Math.cos(finalAngle) * distanceFromTag;
-                            const y = primaryTagPos.y + Math.sin(finalAngle) * distanceFromTag;
-                            
-                            filePositions.set(file.id, { x, y, file });
-                          }
                         } else {
-                          // Files without tags go in inner circle
-                          const untaggedFiles = textFiles.filter(f => !f.tags || f.tags.length === 0);
-                          const untaggedIndex = untaggedFiles.findIndex(f => f.id === file.id);
-                          const angle = (untaggedIndex / Math.max(1, untaggedFiles.length)) * 2 * Math.PI;
-                          const radius = 60;
-                          const x = centerX + Math.cos(angle) * radius;
-                          const y = centerY + Math.sin(angle) * radius;
+                          // Random scatter around center
+                          const angle = Math.random() * 2 * Math.PI;
+                          const distance = 50 + Math.random() * 300;
+                          const x = centerX + Math.cos(angle) * distance;
+                          const y = centerY + Math.sin(angle) * distance;
                           filePositions.set(file.id, { x, y, file });
                         }
                       });
@@ -2927,49 +2918,41 @@ const MilanoteClone = () => {
                           
                           {/* Remove file-to-file connections to reduce visual clutter */}
                           
-                          {/* Render tag nodes */}
+                          {/* Render tag nodes - simple rounded rectangles */}
                           {Array.from(tagPositions.values()).map(({ x, y, tag }) => (
                             <g key={`tag-${tag.id}`} data-node-key={`tag-${tag.id}`}>
                               <rect
-                                x={x - nodeGraphSettings.tagSize}
-                                y={y - nodeGraphSettings.tagSize * 0.6}
-                                width={nodeGraphSettings.tagSize * 2}
-                                height={nodeGraphSettings.tagSize * 1.2}
-                                rx="4"
+                                x={x - 30}
+                                y={y - 12}
+                                width="60"
+                                height="24"
+                                rx="12"
                                 fill={tag.color}
                                 className="cursor-move hover:opacity-80 transition-opacity"
                                 style={{
-                                  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
+                                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.3))',
                                 }}
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
-                                  const startTime = Date.now();
-                                  const startPos = { x: e.clientX, y: e.clientY };
-                                  
                                   setDraggedNode({ 
                                     type: 'tag', 
                                     id: tag.id, 
                                     startX: e.clientX, 
                                     startY: e.clientY,
-                                    startTime,
+                                    startTime: Date.now(),
                                     hasMoved: false
                                   });
-                                  
-                                  const timer = setTimeout(() => {
-                                    setIsDraggingNode(true);
-                                  }, 150); // Small delay to distinguish from click
-                                  
-                                  setClickTimer(timer);
+                                  setIsDraggingNode(true);
                                 }}
                               />
                               <text
                                 x={x}
-                                y={y + nodeGraphSettings.tagSize + 20}
+                                y={y + 4}
                                 textAnchor="middle"
                                 className="text-white fill-current font-medium pointer-events-none"
                                 style={{ 
-                                  fontSize: `${nodeGraphSettings.textSize}px`,
-                                  textShadow: '0 1px 3px rgba(0,0,0,0.8)'
+                                  fontSize: '12px',
+                                  textShadow: '0 1px 2px rgba(0,0,0,0.8)'
                                 }}
                               >
                                 {tag.name.length > 8 ? tag.name.slice(0, 8) + '...' : tag.name}
@@ -2977,9 +2960,8 @@ const MilanoteClone = () => {
                             </g>
                           ))}
                           
-                          {/* Render text file nodes */}
+                          {/* Render text file nodes - simple circles */}
                           {Array.from(filePositions.values()).map(({ x, y, file }) => {
-                            // Find board containing this file
                             const containingBoard = Object.values(boards).find(board => 
                               board.items?.some(item => item.id === file.id)
                             );
@@ -2989,36 +2971,27 @@ const MilanoteClone = () => {
                                 <circle
                                   cx={x}
                                   cy={y}
-                                  r={nodeGraphSettings.nodeSize}
+                                  r="20"
                                   fill="#f4c2c2"
                                   className="cursor-move hover:fill-[#f5d2d2] transition-all duration-200"
                                   style={{
-                                    filter: 'drop-shadow(0 2px 8px rgba(244, 194, 194, 0.3))',
+                                    filter: 'drop-shadow(0 2px 6px rgba(244, 194, 194, 0.3))',
                                     opacity: 0.9
                                   }}
                                   onMouseDown={(e) => {
                                     e.stopPropagation();
-                                    const startTime = Date.now();
-                                    const startPos = { x: e.clientX, y: e.clientY };
-                                    
                                     setDraggedNode({ 
                                       type: 'file', 
                                       id: file.id, 
                                       startX: e.clientX, 
                                       startY: e.clientY,
-                                      startTime,
+                                      startTime: Date.now(),
                                       hasMoved: false
                                     });
-                                    
-                                    const timer = setTimeout(() => {
-                                      setIsDraggingNode(true);
-                                    }, 150); // Small delay to distinguish from click
-                                    
-                                    setClickTimer(timer);
+                                    setIsDraggingNode(true);
                                   }}
                                   onDoubleClick={(e) => {
                                     e.stopPropagation();
-                                    // Navigate to board containing this file
                                     if (containingBoard) {
                                       setShowNodeGraph(false);
                                       const boardId = Object.keys(boards).find(key => boards[key] === containingBoard);
@@ -3030,12 +3003,12 @@ const MilanoteClone = () => {
                                 />
                                 <text
                                   x={x}
-                                  y={y + nodeGraphSettings.nodeSize + 15}
+                                  y={y + 35}
                                   textAnchor="middle"
                                   className="text-white fill-current font-medium pointer-events-none"
                                   style={{ 
-                                    fontSize: `${nodeGraphSettings.textSize}px`,
-                                    textShadow: '0 1px 3px rgba(0,0,0,0.8)'
+                                    fontSize: '12px',
+                                    textShadow: '0 1px 2px rgba(0,0,0,0.8)'
                                   }}
                                 >
                                   {file.title.length > 10 ? file.title.slice(0, 10) + '...' : file.title}
