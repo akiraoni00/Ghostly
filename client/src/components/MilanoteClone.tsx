@@ -1760,9 +1760,19 @@ const MilanoteClone = () => {
     }
   }, [draggingEditor, handleEditorMouseMove, handleEditorMouseUp]);
 
+  // Custom Hand Icon Component
+  const HandIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 12V6.5c0-1.1.9-2 2-2s2 .9 2 2V12"/>
+      <path d="M12 12V4.5c0-1.1.9-2 2-2s2 .9 2 2V12"/>
+      <path d="M16 12V6.5c0-1.1.9-2 2-2s2 .9 2 2V12"/>
+      <path d="M6 12c0-1.1.9-2 2-2h12c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2H8c-1.1 0-2-.9-2-2V12z"/>
+    </svg>
+  );
+
   // Tool components
   const tools = [
-    { id: 'hand', icon: Hand, label: 'Hand Tool' },
+    { id: 'hand', icon: HandIcon, label: 'Hand Tool' },
     { id: 'select', icon: MousePointer, label: 'Select' },
     { id: 'board', icon: Square, label: 'Board' },
     { id: 'textfile', icon: FilePlus, label: 'New Text File' },
@@ -1770,7 +1780,6 @@ const MilanoteClone = () => {
     { id: 'image', icon: Image, label: 'Add Image' },
     { id: 'audio', icon: Music, label: 'Add Audio' },
     { id: 'note', icon: StickyNote, label: 'Note' },
-    { id: 'line', icon: Minus, label: 'Line' },
     { id: 'link', icon: Link2, label: 'Link' },
     { id: 'todo', icon: CheckSquare, label: 'Todo List' },
     { id: 'tag', icon: Tag, label: 'Tags' }
@@ -1808,7 +1817,7 @@ const MilanoteClone = () => {
     <div className="w-full h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-[#1a1a1a] border-b border-gray-800 z-50 flex items-center justify-between px-6">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4" style={{ marginLeft: '80px' }}>
           
           {/* Breadcrumb Navigation */}
           <nav className="flex items-center space-x-2 text-sm">
@@ -1862,15 +1871,15 @@ const MilanoteClone = () => {
             title="Node Manager"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3"/>
-              <circle cx="6" cy="6" r="2"/>
-              <circle cx="18" cy="6" r="2"/>
-              <circle cx="6" cy="18" r="2"/>
-              <circle cx="18" cy="18" r="2"/>
-              <path d="M9 9l6 0"/>
-              <path d="M9 15l6 0"/>
-              <path d="M12 9V6"/>
-              <path d="M12 18v-3"/>
+              <circle cx="12" cy="5" r="2"/>
+              <circle cx="12" cy="12" r="2"/>
+              <circle cx="12" cy="19" r="2"/>
+              <circle cx="5" cy="12" r="2"/>
+              <circle cx="19" cy="12" r="2"/>
+              <path d="M12 7v3"/>
+              <path d="M12 14v3"/>
+              <path d="M7 12h3"/>
+              <path d="M14 12h3"/>
             </svg>
           </button>
           
@@ -2635,6 +2644,24 @@ const MilanoteClone = () => {
               <span>Set Image</span>
             </button>
           )}
+          
+          {(['note', 'link', 'todo', 'tag'].includes(contextMenu.item.type)) && (
+            <button
+              onClick={() => {
+                setColorPicker({
+                  show: true,
+                  x: contextMenu.x,
+                  y: contextMenu.y + 30,
+                  itemId: contextMenu.item.id
+                });
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2 text-gray-300 hover:bg-[#2d2d2d] hover:text-white transition-colors flex items-center space-x-2"
+            >
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: contextMenu.item.backgroundColor || contextMenu.item.color || '#f4c2c2' }} />
+              <span>Change Color</span>
+            </button>
+          )}
 
           <button
             onClick={() => deleteItem(contextMenu.item.id)}
@@ -3309,44 +3336,22 @@ const MilanoteClone = () => {
 
       {/* Node Manager Modal */}
       {showNodeManager && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-black rounded-lg w-[800px] h-[600px] max-w-[90vw] max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[#f4c2c2]">
-              <h3 className="text-white text-lg font-medium flex items-center gap-2">
-                <Network size={20} />
-                Node Manager
-              </h3>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 bg-[#2d2d2d] rounded-lg px-3 py-1">
-                  <button 
-                    onClick={() => setNodeManagerZoom(Math.max(nodeManagerZoom / 1.2, 0.3))}
-                    className="text-gray-400 hover:text-white transition-colors"
-                  >
-                    <ZoomOut size={14} />
-                  </button>
-                  <span className="text-sm font-mono text-white min-w-[50px] text-center">
-                    {Math.round(nodeManagerZoom * 100)}%
-                  </span>
-                  <button 
-                    onClick={() => setNodeManagerZoom(Math.min(nodeManagerZoom * 1.2, 3))}
-                    className="text-gray-400 hover:text-white transition-colors"
-                  >
-                    <ZoomIn size={14} />
-                  </button>
-                </div>
-                <button
-                  onClick={() => setShowNodeManager(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center">
+          <div className="bg-black border border-[#f4c2c2] rounded-lg w-[95vw] h-[95vh] flex flex-col">
+            {/* Minimal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[#f4c2c2]/30">
+              <h3 className="text-[#f4c2c2] text-xl font-light">Network</h3>
+              <button
+                onClick={() => setShowNodeManager(false)}
+                className="text-[#f4c2c2] hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
             </div>
             
             {/* Node Canvas */}
             <div 
-              className="flex-1 relative overflow-hidden cursor-move"
+              className="flex-1 relative overflow-hidden cursor-crosshair"
               onMouseDown={(e) => {
                 if (e.ctrlKey || e.metaKey) {
                   e.preventDefault();
@@ -3379,151 +3384,132 @@ const MilanoteClone = () => {
                   transformOrigin: '0 0'
                 }}
               >
-                {/* Metro-style board network */}
-                <svg className="w-full h-full" style={{ minWidth: '1000px', minHeight: '800px' }}>
+                {/* Metro Evolution Network */}
+                <svg className="w-full h-full" style={{ minWidth: '100%', minHeight: '100%' }}>
                   <rect width="100%" height="100%" fill="#000000" />
                   
-                  {/* Central home node */}
-                  <g>
-                    <circle
-                      cx="400"
-                      cy="300"
-                      r="20"
-                      fill="#f4c2c2"
-                      className="cursor-pointer"
-                      onDoubleClick={() => {
-                        setCurrentBoard('home');
-                        setShowNodeManager(false);
-                      }}
-                    />
-                    <text
-                      x="400"
-                      y="340"
-                      textAnchor="middle"
-                      fill="#f4c2c2"
-                      fontSize="14"
-                      fontWeight="bold"
-                      className="cursor-pointer select-none"
-                    >
-                      {boards.home?.name || 'Home'}
-                    </text>
-                  </g>
+                  <defs>
+                    {/* Gradient definitions for different connection types */}
+                    <linearGradient id="mainLine" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#f4c2c2" stopOpacity="1"/>
+                      <stop offset="50%" stopColor="#f4c2c2" stopOpacity="0.8"/>
+                      <stop offset="100%" stopColor="#f4c2c2" stopOpacity="0.6"/>
+                    </linearGradient>
+                  </defs>
                   
-                  {/* Connected board nodes */}
-                  {Object.entries(boards)
-                    .filter(([id]) => id !== 'home' && id !== currentBoard)
-                    .map(([boardId, board], index) => {
-                      const angle = (index * 2 * Math.PI) / Math.max(1, Object.keys(boards).length - 1);
-                      const radius = 150;
-                      const x = 400 + radius * Math.cos(angle);
-                      const y = 300 + radius * Math.sin(angle);
+                  {(() => {
+                    const centerX = 500;
+                    const centerY = 400;
+                    const boardEntries = Object.entries(boards).filter(([id]) => id !== 'home');
+                    
+                    // Create fractal tree structure
+                    const createTreeLayout = (boards, startX, startY, level = 0, parentAngle = 0) => {
+                      const nodes = [];
+                      const connections = [];
                       
-                      return (
-                        <g key={boardId}>
-                          {/* Modern smooth connection */}
-                          <defs>
-                            <linearGradient id={`gradient-${boardId}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                              <stop offset="0%" stopColor="#f4c2c2" stopOpacity="0.8"/>
-                              <stop offset="100%" stopColor="#f4c2c2" stopOpacity="0.3"/>
-                            </linearGradient>
-                          </defs>
+                      if (boards.length === 0) return { nodes, connections };
+                      
+                      const angleStep = (Math.PI * 2) / Math.max(boards.length, 3);
+                      const radius = 100 + (level * 80);
+                      
+                      boards.forEach((board, index) => {
+                        const angle = parentAngle + (index - boards.length / 2) * angleStep * 0.7;
+                        const x = startX + Math.cos(angle) * radius;
+                        const y = startY + Math.sin(angle) * radius;
+                        
+                        // Create curved metro-style connection
+                        const controlPoint1X = startX + Math.cos(angle) * (radius * 0.3);
+                        const controlPoint1Y = startY + Math.sin(angle) * (radius * 0.3);
+                        const controlPoint2X = startX + Math.cos(angle) * (radius * 0.7);
+                        const controlPoint2Y = startY + Math.sin(angle) * (radius * 0.7);
+                        
+                        connections.push(
                           <path
-                            d={`M 400 300 Q ${(400 + x) / 2} ${(300 + y) / 2 - 30} ${x} ${y}`}
-                            stroke={`url(#gradient-${boardId})`}
-                            strokeWidth="3"
+                            key={`connection-${board[0]}`}
+                            d={`M ${startX} ${startY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${x} ${y}`}
+                            stroke="url(#mainLine)"
+                            strokeWidth="8"
                             fill="none"
                             strokeLinecap="round"
                           />
-                          
-                          {/* Board node */}
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r="12"
-                            fill="#2d2d2d"
-                            className="cursor-pointer hover:fill-[#3d3d3d] transition-colors"
-                            onDoubleClick={() => {
-                              setCurrentBoard(boardId);
-                              setShowNodeManager(false);
-                            }}
-                          />
-                          
-                          {/* Board name */}
-                          <text
-                            x={x}
-                            y={y + 25}
-                            textAnchor="middle"
-                            fill="#fff"
-                            fontSize="12"
-                            className="cursor-pointer select-none"
-                          >
-                            {board.name || `Board ${index + 1}`}
-                          </text>
-                          
-                          {/* Item count indicator */}
-                          <text
-                            x={x}
-                            y={y + 4}
-                            textAnchor="middle"
-                            fill="#f4c2c2"
-                            fontSize="10"
-                            fontWeight="bold"
-                            className="select-none"
-                          >
-                            {board.items?.length || 0}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  
-                  {/* Current board indicator */}
-                  {currentBoard !== 'home' && boards[currentBoard] && (
-                    <g>
-                      <circle
-                        cx="400"
-                        cy="150"
-                        r="15"
-                        fill="#f4c2c2"
-                        stroke="#fff"
-                        strokeWidth="3"
-                        opacity="0.8"
-                      />
-                      <text
-                        x="400"
-                        y="130"
-                        textAnchor="middle"
-                        fill="#f4c2c2"
-                        fontSize="12"
-                        fontWeight="bold"
-                        className="select-none"
-                      >
-                        Current: {boards[currentBoard]?.name}
-                      </text>
-                      <line
-                        x1="400"
-                        y1="165"
-                        x2="400"
-                        y2="280"
-                        stroke="#f4c2c2"
-                        strokeWidth="3"
-                        opacity="0.8"
-                      />
-                    </g>
-                  )}
+                        );
+                        
+                        nodes.push({
+                          id: board[0],
+                          name: board[1].name,
+                          x,
+                          y,
+                          level
+                        });
+                      });
+                      
+                      return { nodes, connections };
+                    };
+                    
+                    const { nodes, connections } = createTreeLayout(boardEntries, centerX, centerY);
+                    
+                    return (
+                      <g>
+                        {/* Render connections first */}
+                        {connections}
+                        
+                        {/* Central home node */}
+                        <circle
+                          cx={centerX}
+                          cy={centerY}
+                          r="18"
+                          fill="#f4c2c2"
+                          className="cursor-pointer hover:r-20 transition-all"
+                          onDoubleClick={() => {
+                            setCurrentBoard('home');
+                            setShowNodeManager(false);
+                          }}
+                        />
+                        <text
+                          x={centerX}
+                          y={centerY + 40}
+                          textAnchor="middle"
+                          fill="#f4c2c2"
+                          fontSize="14"
+                          fontWeight="300"
+                          className="cursor-pointer select-none"
+                        >
+                          {boards.home?.name || 'Origin'}
+                        </text>
+                        
+                        {/* Board nodes */}
+                        {nodes.map(node => (
+                          <g key={node.id}>
+                            <circle
+                              cx={node.x}
+                              cy={node.y}
+                              r="12"
+                              fill="#f4c2c2"
+                              fillOpacity="0.8"
+                              className="cursor-pointer hover:fill-opacity-100 transition-all"
+                              onDoubleClick={() => {
+                                setCurrentBoard(node.id);
+                                setShowNodeManager(false);
+                              }}
+                            />
+                            <text
+                              x={node.x}
+                              y={node.y + 30}
+                              textAnchor="middle"
+                              fill="#f4c2c2"
+                              fontSize="12"
+                              fontWeight="300"
+                              className="cursor-pointer select-none"
+                              fillOpacity="0.8"
+                            >
+                              {node.name}
+                            </text>
+                          </g>
+                        ))}
+                      </g>
+                    );
+                  })()}
                 </svg>
-              </div>
-            </div>
-            
-            {/* Footer Info */}
-            <div className="p-4 border-t border-gray-700 bg-[#2d2d2d] text-sm text-gray-400">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span>Double-click a node to navigate to that board</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span>Ctrl+Click to zoom • Mouse wheel to zoom • Drag to pan</span>
-                  <span>{Object.keys(boards).length} boards total</span>
-                </div>
               </div>
             </div>
           </div>
