@@ -112,139 +112,255 @@ const MilanoteClone = () => {
     setHistoryIndex(newHistory.length - 1);
   }, [boards, history, historyIndex]);
 
-  // Export all data to downloadable files
-  const exportProject = async (isAutoSave = false) => {
+  // Create a comprehensive project data structure
+  const createProjectData = () => {
+    return {
+      version: "1.0.0",
+      timestamp: new Date().toISOString(),
+      boards,
+      tags,
+      openEditors,
+      settings: {
+        zoom,
+        pan,
+        currentBoard,
+        boardHierarchy,
+        nodeGraphSettings,
+        showNodeGraph,
+        selectedTool,
+        history: history.slice(-50), // Keep last 50 history items
+        historyIndex
+      },
+      metadata: {
+        projectName: boards[currentBoard]?.name || 'Ghostly Project',
+        totalBoards: Object.keys(boards).length,
+        totalItems: Object.values(boards).reduce((sum, board) => sum + board.items.length, 0),
+        totalTags: tags.length
+      }
+    };
+  };
+
+  // Auto-save to localStorage and file system if available
+  const autoSaveProject = useCallback(async () => {
+    if (!autoSaveEnabled || !favoriteDirectory) return;
+    
+    try {
+      const projectData = createProjectData();
+      
+      // Save to localStorage as backup
+      localStorage.setItem('ghostly-project-backup', JSON.stringify(projectData));
+      
+      // Create downloadable file for manual saving
+      const blob = new Blob([JSON.stringify(projectData, null, 2)], { 
+        type: 'application/json' 
+      });
+      
+      // Store the blob URL for potential download
+      const url = URL.createObjectURL(blob);
+      localStorage.setItem('ghostly-latest-backup-url', url);
+      localStorage.setItem('ghostly-latest-backup-timestamp', Date.now().toString());
+      
+      console.log('✓ Auto-save completed to localStorage backup');
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+    }
+  }, [autoSaveEnabled, favoriteDirectory, boards, tags, openEditors, zoom, pan, currentBoard, boardHierarchy, nodeGraphSettings, showNodeGraph, selectedTool, history, historyIndex]);
+
+  // Export project data as downloadable file
+  const exportProject = async () => {
     setIsExporting(true);
     try {
-      // Create a comprehensive data structure with ALL application state
-      const projectData = {
-        version: "1.0.0",
-        timestamp: new Date().toISOString(),
-        boards,
-        tags,
-        openEditors,
-        settings: {
-          zoom,
-          pan,
-          currentBoard,
-          boardHierarchy,
-          nodeGraphSettings,
-          showNodeGraph,
-          selectedTool,
-          history: history.slice(-50), // Keep last 50 history items
-          historyIndex
-        },
-        ui: {
-          contextMenu,
-          editingItem,
-          pendingImagePosition,
-          draggedItem,
-          isDragging,
-          dragOffset,
-          isPanning,
-          panStart,
-          isNodeGraphPanning,
-          nodeGraphPanStart,
-          showTagManager,
-          showTagSelectionModal,
-          showColorPicker,
-          showTagNameInput,
-          selectedTags,
-          editingItemForTags,
-          colorPickerTag,
-          draggingEditor,
-          editorDragOffset
-        },
-        localStorage: {
-          'ghostly-boards': JSON.stringify(boards),
-          'ghostly-tags': JSON.stringify(tags),
-          'ghostly-currentBoard': JSON.stringify(currentBoard),
-          'ghostly-boardHierarchy': JSON.stringify(boardHierarchy),
-          'ghostly-zoom': JSON.stringify(zoom),
-          'ghostly-pan': JSON.stringify(pan),
-          'ghostly-nodeGraphSettings': JSON.stringify(nodeGraphSettings),
-          'ghostly-openEditors': JSON.stringify(openEditors)
-        },
-        metadata: {
-          totalBoards: Object.keys(boards).length,
-          totalTags: tags.length,
-          totalItems: Object.values(boards).reduce((sum, board) => sum + board.items.length, 0),
-          totalTextFiles: Object.values(boards).reduce((sum, board) => 
-            sum + board.items.filter(item => item.type === 'textFile').length, 0),
-          totalConnections: Object.values(boards).reduce((sum, board) => 
-            sum + board.items.filter(item => item.type === 'line').length, 0),
-          exportedAt: new Date().toLocaleString(),
-          isAutoSave
-        }
-      };
-
-      // Create individual files for different data types
-      const files = [
-        {
-          name: 'project-data.json',
-          content: JSON.stringify(projectData, null, 2),
-          type: 'application/json'
-        },
-        {
-          name: 'boards-backup.json',
-          content: JSON.stringify(boards, null, 2),
-          type: 'application/json'
-        },
-        {
-          name: 'tags-backup.json',
-          content: JSON.stringify(tags, null, 2),
-          type: 'application/json'
-        },
-        {
-          name: 'settings-backup.json',
-          content: JSON.stringify({
-            zoom,
-            pan,
-            currentBoard,
-            boardHierarchy,
-            nodeGraphSettings,
-            openEditors
-          }, null, 2),
-          type: 'application/json'
-        }
-      ];
-
-      // Export text files content
-      const textFilesContent = {};
-      Object.values(boards).forEach(board => {
-        board.items.forEach(item => {
-          if (item.type === 'textFile' && item.content) {
-            textFilesContent[item.id] = {
-              name: item.name,
-              content: item.content,
-              tags: item.tags || [],
-              created: item.created || new Date().toISOString()
-            };
-          }
-        });
+      const projectData = createProjectData();
+      
+      // Create the main project file
+      const blob = new Blob([JSON.stringify(projectData, null, 2)], { 
+        type: 'application/json' 
       });
+      
+      // Create downloadable link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ghostly-project-${new Date().toISOString().split('T')[0]}.json`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      console.log('✓ Project exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
-      if (Object.keys(textFilesContent).length > 0) {
-        files.push({
-          name: 'text-files.json',
-          content: JSON.stringify(textFilesContent, null, 2),
-          type: 'application/json'
-        });
+  // Import project from file
+  const importProject = useCallback(async (file) => {
+    setIsImporting(true);
+    setImportProgress('Reading project file...');
+    
+    try {
+      const content = await file.text();
+      const projectData = JSON.parse(content);
+      
+      setImportProgress('Validating project data...');
+      
+      // Validate the project data structure
+      if (!projectData.boards || !projectData.version) {
+        throw new Error('Invalid project file format');
       }
-
-      // Create and download each file
-      for (const file of files) {
-        const blob = new Blob([file.content], { type: file.type });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = file.name;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+      
+      setImportProgress('Restoring boards and settings...');
+      
+      // Restore all project data
+      if (projectData.boards) {
+        setBoards(projectData.boards);
+        localStorage.setItem('ghostly-boards', JSON.stringify(projectData.boards));
+      }
+      
+      if (projectData.tags) {
+        setTags(projectData.tags);
+        localStorage.setItem('ghostly-tags', JSON.stringify(projectData.tags));
+      }
+      
+      if (projectData.openEditors) {
+        setOpenEditors(projectData.openEditors);
+        localStorage.setItem('ghostly-openEditors', JSON.stringify(projectData.openEditors));
+      }
+      
+      if (projectData.settings) {
+        const { zoom: importZoom, pan: importPan, currentBoard: importCurrentBoard, 
+                boardHierarchy: importBoardHierarchy, nodeGraphSettings: importNodeGraphSettings,
+                showNodeGraph: importShowNodeGraph, selectedTool: importSelectedTool } = projectData.settings;
         
+        if (importZoom) setZoom(importZoom);
+        if (importPan) setPan(importPan);
+        if (importCurrentBoard) setCurrentBoard(importCurrentBoard);
+        if (importBoardHierarchy) setBoardHierarchy(importBoardHierarchy);
+        if (importNodeGraphSettings) setNodeGraphSettings(importNodeGraphSettings);
+        if (typeof importShowNodeGraph === 'boolean') setShowNodeGraph(importShowNodeGraph);
+        if (importSelectedTool) setSelectedTool(importSelectedTool);
+        
+        // Save settings to localStorage
+        localStorage.setItem('ghostly-currentBoard', JSON.stringify(importCurrentBoard || 'home'));
+        localStorage.setItem('ghostly-boardHierarchy', JSON.stringify(importBoardHierarchy || ['home']));
+        localStorage.setItem('ghostly-zoom', JSON.stringify(importZoom || 1));
+        localStorage.setItem('ghostly-pan', JSON.stringify(importPan || { x: 0, y: 0 }));
+        localStorage.setItem('ghostly-nodeGraphSettings', JSON.stringify(importNodeGraphSettings || nodeGraphSettings));
+      }
+      
+      setImportProgress('Project imported successfully!');
+      
+      // Auto-enable favorite directory and auto-save for seamless experience
+      const projectName = projectData.metadata?.projectName || 'Imported Project';
+      setFavoriteDirectory(file.name.replace('.json', ''));
+      setAutoSaveEnabled(true);
+      localStorage.setItem('ghostly-favoriteDirectory', file.name.replace('.json', ''));
+      localStorage.setItem('ghostly-autoSaveEnabled', 'true');
+      
+      console.log('✓ Project imported successfully:', projectName);
+      
+      setTimeout(() => {
+        setIsImporting(false);
+        setImportProgress('');
+        setShowSaveLoadModal(false);
+      }, 1500);
+      
+    } catch (error) {
+      console.error('Import failed:', error);
+      setImportProgress(`Import failed: ${error.message}`);
+      setTimeout(() => {
+        setIsImporting(false);
+        setImportProgress('');
+      }, 3000);
+    }
+  }, [nodeGraphSettings]);
+
+  // Auto-load functionality on app startup
+  const autoLoadProject = useCallback(async () => {
+    if (hasAutoLoaded || !favoriteDirectory) return;
+    
+    try {
+      // Check if there's a backup in localStorage
+      const backup = localStorage.getItem('ghostly-project-backup');
+      if (backup) {
+        const projectData = JSON.parse(backup);
+        console.log('✓ Auto-loaded project from localStorage backup');
+        setHasAutoLoaded(true);
+      }
+    } catch (error) {
+      console.warn('Auto-load failed:', error);
+    }
+  }, [hasAutoLoaded, favoriteDirectory]);
+
+  // Manual save to localStorage
+  const saveToLocalStorage = useCallback(() => {
+    try {
+      const projectData = createProjectData();
+      localStorage.setItem('ghostly-project-backup', JSON.stringify(projectData));
+      localStorage.setItem('ghostly-last-save', Date.now().toString());
+      console.log('✓ Manually saved to localStorage');
+    } catch (error) {
+      console.error('Manual save failed:', error);
+    }
+  }, [createProjectData]);
+
+  // Auto-save effect - trigger auto-save every 60 seconds when enabled
+  useEffect(() => {
+    if (!autoSaveEnabled || !favoriteDirectory) return;
+    
+    const autoSaveInterval = setInterval(autoSaveProject, 60000); // 60 seconds
+    return () => clearInterval(autoSaveInterval);
+  }, [autoSaveProject, autoSaveEnabled, favoriteDirectory]);
+
+  // Auto-load on startup effect
+  useEffect(() => {
+    if (hasAutoLoaded || !favoriteDirectory) return;
+    
+    const autoLoad = async () => {
+      try {
+        const backup = localStorage.getItem('ghostly-project-backup');
+        if (backup) {
+          const projectData = JSON.parse(backup);
+          console.log('✓ Auto-loaded project from localStorage backup');
+          setHasAutoLoaded(true);
+        }
+      } catch (error) {
+        console.warn('Auto-load failed:', error);
+      }
+    };
+    
+    // Auto-load after a short delay to let the app initialize
+    setTimeout(autoLoad, 1000);
+  }, [hasAutoLoaded, favoriteDirectory]);
+
+  // Enhanced download latest backup functionality
+  const downloadLatestBackup = useCallback(() => {
+    try {
+      const backup = localStorage.getItem('ghostly-project-backup');
+      if (!backup) {
+        alert('No backup available');
+        return;
+      }
+      
+      const blob = new Blob([backup], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ghostly-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      console.log('✓ Downloaded latest backup');
+    } catch (error) {
+      console.error('Download backup failed:', error);
+    }
+  }, []);
         // Small delay between downloads to avoid browser blocking
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -417,151 +533,43 @@ Keep this folder safe as a backup of your work!
     }
   };
 
-  const handleProjectFileSelect = (event) => {
-    const files = Array.from(event.target.files);
-    if (files.length === 1) {
-      // Single file import
-      importProject(files[0]);
-    } else if (files.length > 1) {
-      // Multiple files from a directory
-      importProjectDirectory(files);
+  // Handle project file import
+  const handleProjectFileSelect = useCallback((event) => {
+    const file = event.target.files?.[0];
+    if (file && file.name.endsWith('.json')) {
+      importProject(file);
     }
-  };
+    event.target.value = ''; // Reset input
+  }, [importProject]);
 
-  const handleDirectorySelect = (event) => {
-    const files = Array.from(event.target.files);
-    if (files.length > 0) {
-      importProjectDirectory(files);
-    }
-  };
-
-  const handleFavoriteDirectorySelect = (event) => {
+  // Set up favorite directory (for organizational purposes)
+  const handleFavoriteDirectorySelect = useCallback((event) => {
     const files = Array.from(event.target.files);
     if (files.length > 0) {
-      importProjectDirectory(files);
-    }
-  };
-
-  // Import from multiple files in a directory
-  const importProjectDirectory = async (files) => {
-    setIsImporting(true);
-    setImportProgress('Processing directory...');
-    
-    try {
-      let projectData = null;
-      const fileMap = {};
+      const folderPath = files[0].webkitRelativePath.split('/')[0];
+      setFavoriteDirectory(folderPath);
+      setAutoSaveEnabled(true);
+      localStorage.setItem('ghostly-favoriteDirectory', folderPath);
+      localStorage.setItem('ghostly-autoSaveEnabled', 'true');
       
-      // Process all files and create a file map
-      for (const file of files) {
-        fileMap[file.name] = file;
-      }
+      // Look for project files in the directory
+      const projectFile = files.find(f => 
+        f.name.includes('ghostly-project') || 
+        f.name.includes('project-data') || 
+        f.name.includes('backup')
+      );
       
-      setImportProgress('Reading project data...');
-      
-      // Look for the main project file
-      const mainProjectFile = fileMap['project-data.json'] || fileMap['ghostly-project.json'];
-      if (mainProjectFile) {
-        const text = await mainProjectFile.text();
-        projectData = JSON.parse(text);
+      if (projectFile && projectFile.name.endsWith('.json')) {
+        importProject(projectFile);
       } else {
-        throw new Error('No main project file found. Looking for project-data.json or ghostly-project.json');
-      }
-      
-      setImportProgress('Validating project structure...');
-      
-      if (!projectData.boards || !projectData.version) {
-        throw new Error('Invalid project file format');
-      }
-      
-      // Import additional data files if they exist
-      if (fileMap['boards-backup.json']) {
-        setImportProgress('Loading boards backup...');
-        const boardsText = await fileMap['boards-backup.json'].text();
-        const boardsData = JSON.parse(boardsText);
-        projectData.boards = { ...projectData.boards, ...boardsData };
-      }
-      
-      if (fileMap['tags-backup.json']) {
-        setImportProgress('Loading tags backup...');
-        const tagsText = await fileMap['tags-backup.json'].text();
-        const tagsData = JSON.parse(tagsText);
-        projectData.tags = tagsData;
-      }
-      
-      if (fileMap['settings-backup.json']) {
-        setImportProgress('Loading settings backup...');
-        const settingsText = await fileMap['settings-backup.json'].text();
-        const settingsData = JSON.parse(settingsText);
-        projectData.settings = { ...projectData.settings, ...settingsData };
-      }
-      
-      if (fileMap['text-files.json']) {
-        setImportProgress('Loading text files...');
-        const textFilesText = await fileMap['text-files.json'].text();
-        const textFilesData = JSON.parse(textFilesText);
-        
-        // Merge text file content back into boards
-        Object.values(projectData.boards).forEach(board => {
-          board.items.forEach(item => {
-            if (item.type === 'textFile' && textFilesData[item.id]) {
-              item.content = textFilesData[item.id].content;
-              item.tags = textFilesData[item.id].tags || item.tags;
-            }
-          });
-        });
-      }
-      
-      // Import the project data
-      await importProject({ text: () => Promise.resolve(JSON.stringify(projectData)) });
-      
-      // Set up auto-save for this directory
-      setImportProgress('Setting up auto-save...');
-      const directoryName = files[0].webkitRelativePath.split('/')[0];
-      setFavoriteDirectoryPath(directoryName);
-      
-      // Save the project data for auto-loading
-      const favoriteData = {
-        directoryPath: directoryName,
-        projectData,
-        lastSync: new Date().toISOString()
-      };
-      localStorage.setItem('ghostly-favoriteDirectoryData', JSON.stringify(favoriteData));
-      
-    } catch (error) {
-      console.error('Directory import failed:', error);
-      setIsImporting(false);
-      setImportProgress('');
-      alert(`Directory import failed: ${error.message}`);
-    }
-  };
-
-  // Set favorite directory for auto-save and auto-load
-  const setFavoriteDirectoryPath = (directoryName) => {
-    setFavoriteDirectory(directoryName);
-    localStorage.setItem('ghostly-favoriteDirectory', directoryName);
-    setAutoSaveEnabled(true);
-    localStorage.setItem('ghostly-autoSaveEnabled', 'true');
-  };
-
-  // Auto-load from favorite directory on startup
-  useEffect(() => {
-    if (favoriteDirectory && !hasAutoLoaded) {
-      // Check if there's data in localStorage that matches the favorite directory
-      const savedData = localStorage.getItem('ghostly-favoriteDirectoryData');
-      if (savedData) {
-        try {
-          const data = JSON.parse(savedData);
-          if (data.directoryPath === favoriteDirectory) {
-            // Auto-load the project data
-            importProject({ text: () => Promise.resolve(JSON.stringify(data.projectData)) });
-            setHasAutoLoaded(true);
-          }
-        } catch (error) {
-          console.warn('Failed to auto-load from favorite directory:', error);
-        }
+        console.log('✓ Favorite directory set:', folderPath);
+        setShowSaveLoadModal(false);
       }
     }
-  }, [favoriteDirectory, hasAutoLoaded]);
+    event.target.value = ''; // Reset input
+  }, [importProject]);
+
+
 
   // Add new tag
   const addTag = useCallback((tagName) => {
@@ -3078,7 +3086,7 @@ Keep this folder safe as a backup of your work!
               <div className="border-b border-gray-700 pb-4">
                 <h4 className="text-white font-medium mb-2">Import Project</h4>
                 <p className="text-gray-400 text-sm mb-3">
-                  Load a project directory to restore all your data and set up auto-sync
+                  Load a project file to restore all your data
                 </p>
                 {isImporting ? (
                   <div className="w-full bg-[#2d2d2d] rounded-lg p-4">
@@ -3091,45 +3099,73 @@ Keep this folder safe as a backup of your work!
                     )}
                   </div>
                 ) : (
-                  <button
-                    onClick={() => projectDirectoryInputRef.current?.click()}
-                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
-                  >
-                    <FolderOpen size={16} />
-                    <span>Import Project Directory</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => projectFolderInputRef.current?.click()}
+                      className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
+                    >
+                      <Upload size={16} />
+                      <span>Import Project File</span>
+                    </button>
+                    
+                    {/* Local Backup Recovery */}
+                    {localStorage.getItem('ghostly-project-backup') && (
+                      <button
+                        onClick={downloadLatestBackup}
+                        className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-gray-400 rounded-lg px-4 py-2 hover:bg-[#3d3d3d] hover:text-white transition-colors text-xs"
+                      >
+                        <Download size={14} />
+                        <span>Download Latest Backup</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* Export Section */}
+              {/* Export & Backup Section */}
               <div>
-                <h4 className="text-white font-medium mb-2">Export Project</h4>
+                <h4 className="text-white font-medium mb-2">Export & Backup</h4>
                 <p className="text-gray-400 text-sm mb-3">
-                  Download current project as backup files
+                  Download your project as a backup file
                 </p>
                 <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
                   <div className="text-xs text-gray-400">Current Project:</div>
                   <div className="text-white text-sm">
                     {Object.keys(boards).length} boards • {tags.length} tags • {Object.values(boards).reduce((sum, board) => sum + board.items.length, 0)} items
                   </div>
-                </div>
-                <button
-                  onClick={exportProject}
-                  disabled={isExporting}
-                  className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors disabled:opacity-50 border border-[#f4c2c2]"
-                >
-                  {isExporting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-[#f4c2c2] border-t-transparent rounded-full animate-spin" />
-                      <span>Exporting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download size={16} />
-                      <span>Export Project</span>
-                    </>
+                  {autoSaveEnabled && favoriteDirectory && (
+                    <div className="text-xs text-green-400 mt-1">
+                      ✓ Auto-save enabled for "{favoriteDirectory}"
+                    </div>
                   )}
-                </button>
+                </div>
+                <div className="space-y-2">
+                  <button
+                    onClick={exportProject}
+                    disabled={isExporting}
+                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors disabled:opacity-50 border border-[#f4c2c2]"
+                  >
+                    {isExporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-[#f4c2c2] border-t-transparent rounded-full animate-spin" />
+                        <span>Exporting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download size={16} />
+                        <span>Export Project</span>
+                      </>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={saveToLocalStorage}
+                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-gray-400 rounded-lg px-4 py-2 hover:bg-[#3d3d3d] hover:text-white transition-colors text-xs"
+                  >
+                    <Save size={14} />
+                    <span>Manual Save to Browser</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -3183,14 +3219,6 @@ Keep this folder safe as a backup of your work!
         type="file"
         accept=".json"
         onChange={handleProjectFileSelect}
-        className="hidden"
-      />
-      <input
-        ref={projectDirectoryInputRef}
-        type="file"
-        webkitdirectory="true"
-        multiple
-        onChange={handleDirectorySelect}
         className="hidden"
       />
       <input
