@@ -84,6 +84,7 @@ const MilanoteClone = () => {
   const [draggedItems, setDraggedItems] = useState([]);
   const [multiDragOffset, setMultiDragOffset] = useState({ x: 0, y: 0 });
   const [noteColorPicker, setNoteColorPicker] = useState({ show: false, x: 0, y: 0, itemId: null });
+  const [colorPicker, setColorPicker] = useState({ show: false, x: 0, y: 0, itemId: null });
   const [linePreview, setLinePreview] = useState(null);
   const [editingLine, setEditingLine] = useState(null);
   const [pendingTextFileImport, setPendingTextFileImport] = useState(null);
@@ -969,12 +970,15 @@ const MilanoteClone = () => {
         const minY = Math.min(startY, endY);
         const maxY = Math.max(startY, endY);
         
-        // Find items within selection rectangle
+        // Find items within selection rectangle - select on any touch/overlap
         const selectedItemsInRect = boards[currentBoard].items.filter(item => {
-          const itemCenterX = item.x + (item.width || 0) / 2;
-          const itemCenterY = item.y + (item.height || 0) / 2;
-          return itemCenterX >= minX && itemCenterX <= maxX && 
-                 itemCenterY >= minY && itemCenterY <= maxY;
+          const itemLeft = item.x;
+          const itemRight = item.x + (item.width || 0);
+          const itemTop = item.y;
+          const itemBottom = item.y + (item.height || 0);
+          
+          // Check if selection rectangle overlaps with item bounds (any touch selects)
+          return !(itemRight < minX || itemLeft > maxX || itemBottom < minY || itemTop > maxY);
         });
         
         setSelectedItems(selectedItemsInRect.map(item => item.id));
@@ -1043,6 +1047,29 @@ const MilanoteClone = () => {
 
   // Handle mouse down for dragging and panning
   const handleMouseDown = useCallback((e, item = null) => {
+    // Ctrl+click zoom functionality
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const zoomIn = e.shiftKey ? false : true; // Shift+Ctrl+click zooms out
+      const delta = zoomIn ? 1.2 : 0.8;
+      const newZoom = Math.min(Math.max(zoom * delta, 0.1), 5);
+      
+      const newPan = {
+        x: mouseX - (mouseX - pan.x) * (newZoom / zoom),
+        y: mouseY - (mouseY - pan.y) * (newZoom / zoom)
+      };
+      
+      setZoom(newZoom);
+      setPan(newPan);
+      return;
+    }
+    
     if (item) {
       e.stopPropagation();
       
@@ -1066,6 +1093,19 @@ const MilanoteClone = () => {
       
       // Select tool - handle item selection and dragging
       if (selectedTool === 'select') {
+        // Check for color picker eligible items (everything except boards, images, and text files)
+        const colorPickerEligible = ['note', 'line', 'link', 'todo', 'tag'];
+        if (colorPickerEligible.includes(item.type)) {
+          // Show color picker on left click
+          setColorPicker({
+            show: true,
+            x: e.clientX,
+            y: e.clientY,
+            itemId: item.id
+          });
+          return;
+        }
+        
         // Check if clicking on selected items group
         if (selectedItems.includes(item.id)) {
           // Start multi-item drag - calculate offsets for smooth dragging
@@ -1347,6 +1387,21 @@ const MilanoteClone = () => {
       return newBoards;
     });
     setContextMenu(null);
+    saveToHistory();
+  }, [currentBoard, saveToHistory]);
+
+  // Change item color
+  const changeItemColor = useCallback((itemId, color) => {
+    setBoards(prev => ({
+      ...prev,
+      [currentBoard]: {
+        ...prev[currentBoard],
+        items: prev[currentBoard].items.map(item =>
+          item.id === itemId ? { ...item, color } : item
+        )
+      }
+    }));
+    setColorPicker({ show: false, x: 0, y: 0, itemId: null });
     saveToHistory();
   }, [currentBoard, saveToHistory]);
 
@@ -1720,9 +1775,12 @@ const MilanoteClone = () => {
     };
   }, [handleMouseMove, handleMouseUp, handleWheel]);
 
-  // Close context menu on click
+  // Close context menu and color picker on click
   useEffect(() => {
-    const handleClick = () => setContextMenu(null);
+    const handleClick = () => {
+      setContextMenu(null);
+      setColorPicker({ show: false, x: 0, y: 0, itemId: null });
+    };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, []);
@@ -2710,13 +2768,18 @@ const MilanoteClone = () => {
                     const x = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
                     const y = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
                     
-                    // Use requestAnimationFrame for smooth dragging performance
-                    requestAnimationFrame(() => {
-                      setNodePositions(prev => {
-                        const newMap = new Map(prev);
-                        newMap.set(`${draggedNode.type}-${draggedNode.id}`, { x, y });
-                        return newMap;
-                      });
+                    // Direct DOM manipulation for immediate visual feedback
+                    const nodeKey = `${draggedNode.type}-${draggedNode.id}`;
+                    const nodeElement = document.querySelector(`[data-node-key="${nodeKey}"]`);
+                    if (nodeElement) {
+                      nodeElement.style.transform = `translate(${x}px, ${y}px)`;
+                    }
+                    
+                    // Update state for persistence - batched for performance
+                    setNodePositions(prev => {
+                      const newMap = new Map(prev);
+                      newMap.set(nodeKey, { x, y });
+                      return newMap;
                     });
                   } else if (isNodeGraphPanning) {
                     setNodeGraphPan({
@@ -2866,7 +2929,7 @@ const MilanoteClone = () => {
                           
                           {/* Render tag nodes */}
                           {Array.from(tagPositions.values()).map(({ x, y, tag }) => (
-                            <g key={`tag-${tag.id}`}>
+                            <g key={`tag-${tag.id}`} data-node-key={`tag-${tag.id}`}>
                               <rect
                                 x={x - nodeGraphSettings.tagSize}
                                 y={y - nodeGraphSettings.tagSize * 0.6}
@@ -2922,7 +2985,7 @@ const MilanoteClone = () => {
                             );
                             
                             return (
-                              <g key={file.id}>
+                              <g key={file.id} data-node-key={`file-${file.id}`}>
                                 <circle
                                   cx={x}
                                   cy={y}
@@ -2992,19 +3055,7 @@ const MilanoteClone = () => {
                 <div className="absolute top-4 right-4 bg-[#1a1a1a] border border-gray-700 rounded-lg p-4 w-64 z-10">
                   <h3 className="text-white font-medium mb-3">Graph Settings</h3>
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-gray-300 text-sm block mb-2">Node Distance</label>
-                      <input
-                        type="range"
-                        min="80"
-                        max="200"
-                        step="5"
-                        value={nodeGraphSettings.nodeDistance}
-                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, nodeDistance: parseInt(e.target.value) }))}
-                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
-                      />
-                      <span className="text-gray-400 text-xs">{nodeGraphSettings.nodeDistance}px</span>
-                    </div>
+
                     <div>
                       <label className="text-gray-300 text-sm block mb-2">Text Size</label>
                       <input
@@ -3044,19 +3095,7 @@ const MilanoteClone = () => {
                       />
                       <span className="text-gray-400 text-xs">{nodeGraphSettings.nodeSize}px</span>
                     </div>
-                    <div>
-                      <label className="text-gray-300 text-sm block mb-2">Tag Distance</label>
-                      <input
-                        type="range"
-                        min="120"
-                        max="300"
-                        step="10"
-                        value={nodeGraphSettings.tagDistance}
-                        onChange={(e) => setNodeGraphSettings(prev => ({ ...prev, tagDistance: parseInt(e.target.value) }))}
-                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-pink"
-                      />
-                      <span className="text-gray-400 text-xs">{nodeGraphSettings.tagDistance}px</span>
-                    </div>
+
                     <div>
                       <label className="text-gray-300 text-sm block mb-2">Tag Size</label>
                       <input
@@ -3794,6 +3833,35 @@ const MilanoteClone = () => {
         onChange={handleFavoriteDirectorySelect}
         className="hidden"
       />
+
+      {/* Color Picker Modal */}
+      {colorPicker.show && (
+        <div 
+          className="fixed z-50 bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-3 shadow-2xl"
+          style={{
+            left: colorPicker.x,
+            top: colorPicker.y,
+            transform: 'translate(-50%, -100%)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              '#f4c2c2', '#ff6b6b', '#4ecdc4', '#45b7d1',
+              '#96ceb4', '#ffeaa7', '#dda0dd', '#98d8c8',
+              '#f7dc6f', '#bb8fce', '#85c1e9', '#f8c471',
+              '#82e0aa', '#f1948a', '#85c8e0', '#d2b4de'
+            ].map((color) => (
+              <button
+                key={color}
+                className="w-8 h-8 rounded-full border-2 border-gray-600 hover:border-white transition-all hover:scale-110"
+                style={{ backgroundColor: color }}
+                onClick={() => changeItemColor(colorPicker.itemId, color)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
