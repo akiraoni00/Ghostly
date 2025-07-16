@@ -1807,14 +1807,8 @@ const MilanoteClone = () => {
   return (
     <div className="w-full h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Top Navigation Bar */}
-      <div className="fixed top-0 left-0 right-0 h-12 bg-[#1a1a1a] border-b border-gray-800 z-50 flex items-center justify-between px-4">
+      <div className="fixed top-0 left-0 right-0 h-16 bg-[#1a1a1a] border-b border-gray-800 z-50 flex items-center justify-between px-6">
         <div className="flex items-center space-x-4">
-          {/* Project Logo */}
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 text-[#f4c2c2]">
-              <Square size={24} />
-            </div>
-          </div>
           
           {/* Breadcrumb Navigation */}
           <nav className="flex items-center space-x-2 text-sm">
@@ -1842,75 +1836,85 @@ const MilanoteClone = () => {
           {/* Settings */}
           <button
             onClick={() => setShowSettings(true)}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
+            className="p-3 text-gray-400 hover:text-white transition-colors"
             title="Settings"
           >
-            <Settings size={16} />
+            <Settings size={20} />
           </button>
           
           {/* Save/Load Project */}
           <button
             onClick={() => setShowSaveLoadModal(true)}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
+            className="p-3 text-gray-400 hover:text-white transition-colors"
             title={
               autoSaveEnabled && favoriteDirectory
                 ? `Auto-sync enabled: ${favoriteDirectory}`
                 : 'Project Manager'
             }
           >
-            <FolderOpen size={16} />
+            <FolderOpen size={20} />
           </button>
           
           {/* Node Manager */}
           <button
             onClick={() => setShowNodeManager(true)}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
+            className="p-3 text-gray-400 hover:text-white transition-colors"
             title="Node Manager"
           >
-            <Network size={16} />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <circle cx="6" cy="6" r="2"/>
+              <circle cx="18" cy="6" r="2"/>
+              <circle cx="6" cy="18" r="2"/>
+              <circle cx="18" cy="18" r="2"/>
+              <path d="M9 9l6 0"/>
+              <path d="M9 15l6 0"/>
+              <path d="M12 9V6"/>
+              <path d="M12 18v-3"/>
+            </svg>
           </button>
           
           {/* Zoom Controls */}
-          <div className="flex items-center space-x-2 bg-[#2d2d2d] rounded-lg px-3 py-1">
+          <div className="flex items-center space-x-2 bg-[#2d2d2d] rounded-lg px-4 py-2">
             <button 
               onClick={() => setZoom(Math.max(zoom / 1.2, 0.1))}
               className="text-gray-400 hover:text-white transition-colors"
             >
-              <ZoomOut size={14} />
+              <ZoomOut size={18} />
             </button>
-            <span className="text-sm font-mono">{Math.round(zoom * 100)}%</span>
+            <span className="text-sm font-mono min-w-[50px] text-center">{Math.round(zoom * 100)}%</span>
             <button 
               onClick={() => setZoom(Math.min(zoom * 1.2, 5))}
               className="text-gray-400 hover:text-white transition-colors"
             >
-              <ZoomIn size={14} />
+              <ZoomIn size={18} />
             </button>
           </div>
           
           {/* Undo/Redo */}
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-2">
             <button 
               onClick={undo}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
+              className="p-3 text-gray-400 hover:text-white transition-colors"
               title="Undo (Ctrl+Z)"
             >
-              <Undo2 size={16} />
+              <Undo2 size={20} />
             </button>
             <button 
               onClick={redo}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
+              className="p-3 text-gray-400 hover:text-white transition-colors"
               title="Redo (Ctrl+Shift+Z)"
             >
-              <Redo2 size={16} />
+              <Redo2 size={20} />
             </button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-1 pt-12">
+      <div className="flex flex-1 pt-16">
         {/* Left Toolbar - Full Height */}
-        <div className="w-16 bg-[#1a1a1a] border-r border-gray-800 flex flex-col items-center py-4 space-y-3">
+        <div className="w-20 bg-[#1a1a1a] border-r border-gray-800 flex flex-col items-center py-6 space-y-4">
           {tools.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -1922,14 +1926,14 @@ const MilanoteClone = () => {
                   setSelectedTool(id);
                 }
               }}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+              className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors ${
                 selectedTool === id
                   ? 'bg-[#f4c2c2] text-black'
                   : 'bg-[#2d2d2d] text-[#f4c2c2] hover:bg-[#f4c2c2] hover:text-black'
               }`}
               title={label}
             >
-              <Icon size={16} />
+              <Icon size={20} />
             </button>
           ))}
         </div>
@@ -2631,23 +2635,7 @@ const MilanoteClone = () => {
               <span>Set Image</span>
             </button>
           )}
-          {(['note', 'link', 'todo', 'tag', 'line'].includes(contextMenu.item.type)) && (
-            <button
-              onClick={() => {
-                setNoteColorPicker({
-                  show: true,
-                  x: contextMenu.x,
-                  y: contextMenu.y + 30,
-                  itemId: contextMenu.item.id
-                });
-                setContextMenu(null);
-              }}
-              className="w-full text-left px-4 py-2 text-gray-300 hover:bg-[#2d2d2d] hover:text-white transition-colors flex items-center space-x-2"
-            >
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: contextMenu.item.backgroundColor || contextMenu.item.color || '#f4c2c2' }} />
-              <span>Change Color</span>
-            </button>
-          )}
+
           <button
             onClick={() => deleteItem(contextMenu.item.id)}
             className="w-full text-left px-4 py-2 text-red-400 hover:bg-red-900 hover:text-red-300 transition-colors flex items-center space-x-2"
@@ -3322,9 +3310,9 @@ const MilanoteClone = () => {
       {/* Node Manager Modal */}
       {showNodeManager && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg w-[800px] h-[600px] max-w-[90vw] max-h-[90vh] flex flex-col">
+          <div className="bg-black rounded-lg w-[800px] h-[600px] max-w-[90vw] max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-[#f4c2c2]">
               <h3 className="text-white text-lg font-medium flex items-center gap-2">
                 <Network size={20} />
                 Node Manager
@@ -3393,13 +3381,7 @@ const MilanoteClone = () => {
               >
                 {/* Metro-style board network */}
                 <svg className="w-full h-full" style={{ minWidth: '1000px', minHeight: '800px' }}>
-                  {/* Grid background */}
-                  <defs>
-                    <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#2d2d2d" strokeWidth="1"/>
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#grid)" />
+                  <rect width="100%" height="100%" fill="#000000" />
                   
                   {/* Central home node */}
                   <g>
@@ -3408,8 +3390,6 @@ const MilanoteClone = () => {
                       cy="300"
                       r="20"
                       fill="#f4c2c2"
-                      stroke="#fff"
-                      strokeWidth="3"
                       className="cursor-pointer"
                       onDoubleClick={() => {
                         setCurrentBoard('home');
@@ -3440,16 +3420,19 @@ const MilanoteClone = () => {
                       
                       return (
                         <g key={boardId}>
-                          {/* Connection line */}
-                          <line
-                            x1="400"
-                            y1="300"
-                            x2={x}
-                            y2={y}
-                            stroke="#f4c2c2"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                            opacity="0.6"
+                          {/* Modern smooth connection */}
+                          <defs>
+                            <linearGradient id={`gradient-${boardId}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#f4c2c2" stopOpacity="0.8"/>
+                              <stop offset="100%" stopColor="#f4c2c2" stopOpacity="0.3"/>
+                            </linearGradient>
+                          </defs>
+                          <path
+                            d={`M 400 300 Q ${(400 + x) / 2} ${(300 + y) / 2 - 30} ${x} ${y}`}
+                            stroke={`url(#gradient-${boardId})`}
+                            strokeWidth="3"
+                            fill="none"
+                            strokeLinecap="round"
                           />
                           
                           {/* Board node */}
@@ -3458,8 +3441,6 @@ const MilanoteClone = () => {
                             cy={y}
                             r="12"
                             fill="#2d2d2d"
-                            stroke="#f4c2c2"
-                            strokeWidth="2"
                             className="cursor-pointer hover:fill-[#3d3d3d] transition-colors"
                             onDoubleClick={() => {
                               setCurrentBoard(boardId);
