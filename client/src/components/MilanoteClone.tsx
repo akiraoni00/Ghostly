@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move, Network, MapPin } from 'lucide-react';
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -85,6 +85,11 @@ const MilanoteClone = () => {
   const [colorPickerTag, setColorPickerTag] = useState(null);
   const [showTagNameInput, setShowTagNameInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [showNodeManager, setShowNodeManager] = useState(false);
+  const [nodeManagerZoom, setNodeManagerZoom] = useState(1);
+  const [nodeManagerPan, setNodeManagerPan] = useState({ x: 0, y: 0 });
+  const [isNodeManagerPanning, setIsNodeManagerPanning] = useState(false);
+  const [nodeManagerPanStart, setNodeManagerPanStart] = useState({ x: 0, y: 0 });
   
   // Settings and theme state
   const [showSettings, setShowSettings] = useState(false);
@@ -814,62 +819,37 @@ const MilanoteClone = () => {
     saveToHistory();
   }, [selectedTool, currentBoard, saveToHistory, zoom, pan]);
 
-  // Enhanced line drawing with smooth preview
+  // Fixed line drawing - snap once and show preview
   const handleLineDrawing = useCallback((e) => {
     if (selectedTool !== 'line') return;
     
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     
-    const startX = e.clientX - rect.left;
-    const startY = e.clientY - rect.top;
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+    const canvasX = (clickX - pan.x) / zoom;
+    const canvasY = (clickY - pan.y) / zoom;
     
-    const canvasStartX = (startX - pan.x) / zoom;
-    const canvasStartY = (startY - pan.y) / zoom;
-    
-    setLineStartPoint({ x: canvasStartX, y: canvasStartY });
-    setIsDrawingLine(true);
-    
-    const handleMouseMove = (moveEvent) => {
-      const endX = moveEvent.clientX - rect.left;
-      const endY = moveEvent.clientY - rect.top;
-      
-      const canvasEndX = (endX - pan.x) / zoom;
-      const canvasEndY = (endY - pan.y) / zoom;
-      
-      // Show smooth preview line
-      setLinePreview({
-        startX: canvasStartX,
-        startY: canvasStartY,
-        endX: canvasEndX,
-        endY: canvasEndY,
-        color: '#f4c2c2',
-        strokeWidth: 2,
-        isDash: true
-      });
-    };
-    
-    const handleMouseUp = (upEvent) => {
-      const endX = upEvent.clientX - rect.left;
-      const endY = upEvent.clientY - rect.top;
-      
-      const canvasEndX = (endX - pan.x) / zoom;
-      const canvasEndY = (endY - pan.y) / zoom;
-      
-      // Only create line if there's meaningful length
-      const length = Math.sqrt(Math.pow(canvasEndX - canvasStartX, 2) + Math.pow(canvasEndY - canvasStartY, 2));
+    if (!lineStartPoint) {
+      // First click - set start point and begin drawing mode
+      setLineStartPoint({ x: canvasX, y: canvasY });
+      setIsDrawingLine(true);
+    } else {
+      // Second click - complete the line
+      const length = Math.sqrt(Math.pow(canvasX - lineStartPoint.x, 2) + Math.pow(canvasY - lineStartPoint.y, 2));
       if (length > 5) {
         const newLine = {
           id: `line_${Date.now()}`,
           type: 'line',
-          x: Math.min(canvasStartX, canvasEndX) - 10,
-          y: Math.min(canvasStartY, canvasEndY) - 10,
-          width: Math.abs(canvasEndX - canvasStartX) + 20,
-          height: Math.abs(canvasEndY - canvasStartY) + 20,
-          startX: canvasStartX,
-          startY: canvasStartY,
-          endX: canvasEndX,
-          endY: canvasEndY,
+          x: Math.min(lineStartPoint.x, canvasX) - 10,
+          y: Math.min(lineStartPoint.y, canvasY) - 10,
+          width: Math.abs(canvasX - lineStartPoint.x) + 20,
+          height: Math.abs(canvasY - lineStartPoint.y) + 20,
+          startX: lineStartPoint.x,
+          startY: lineStartPoint.y,
+          endX: canvasX,
+          endY: canvasY,
           color: '#f4c2c2',
           strokeWidth: 2,
           rotation: 0
@@ -886,17 +866,13 @@ const MilanoteClone = () => {
         saveToHistory();
       }
       
+      // Reset line drawing state and switch back to select tool
       setLinePreview(null);
       setLineStartPoint(null);
       setIsDrawingLine(false);
-      
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [selectedTool, currentBoard, saveToHistory, zoom, pan]);
+      setSelectedTool('select');
+    }
+  }, [selectedTool, currentBoard, saveToHistory, zoom, pan, lineStartPoint]);
 
   // Handle rectangle selection
   const handleRectangleSelection = useCallback((e) => {
@@ -1022,7 +998,7 @@ const MilanoteClone = () => {
 
   // Handle mouse down for dragging and panning
   const handleMouseDown = useCallback((e, item = null) => {
-    // Ctrl+click zoom functionality
+    // Ctrl+click dynamic zoom functionality
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -1031,16 +1007,25 @@ const MilanoteClone = () => {
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
       
-      const zoomIn = e.shiftKey ? false : true; // Shift+Ctrl+click zooms out
-      const delta = zoomIn ? 1.2 : 0.8;
-      const newZoom = Math.min(Math.max(zoom * delta, 0.1), 5);
+      // Calculate zoom direction based on current zoom level
+      let targetZoom;
+      if (zoom < 0.5) {
+        targetZoom = 1; // Zoom to normal
+      } else if (zoom < 1.5) {
+        targetZoom = 2; // Zoom in further
+      } else if (zoom < 3) {
+        targetZoom = 0.5; // Zoom out
+      } else {
+        targetZoom = 1; // Reset to normal
+      }
       
+      // Smooth zoom with focal point at mouse cursor
       const newPan = {
-        x: mouseX - (mouseX - pan.x) * (newZoom / zoom),
-        y: mouseY - (mouseY - pan.y) * (newZoom / zoom)
+        x: mouseX - (mouseX - pan.x) * (targetZoom / zoom),
+        y: mouseY - (mouseY - pan.y) * (targetZoom / zoom)
       };
       
-      setZoom(newZoom);
+      setZoom(targetZoom);
       setPan(newPan);
       return;
     }
@@ -1163,6 +1148,27 @@ const MilanoteClone = () => {
 
   // Handle mouse move for dragging and panning
   const handleMouseMove = useCallback((e) => {
+    // Handle line preview while drawing
+    if (isDrawingLine && lineStartPoint) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const canvasX = (mouseX - pan.x) / zoom;
+        const canvasY = (mouseY - pan.y) / zoom;
+        
+        setLinePreview({
+          startX: lineStartPoint.x,
+          startY: lineStartPoint.y,
+          endX: canvasX,
+          endY: canvasY,
+          color: '#f4c2c2',
+          strokeWidth: 2,
+          isDash: true
+        });
+      }
+    }
+    
     if (isResizing && resizeStart) {
       // Handle image resizing
       const deltaX = e.clientX - resizeStart.x;
@@ -1803,10 +1809,10 @@ const MilanoteClone = () => {
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 h-12 bg-[#1a1a1a] border-b border-gray-800 z-50 flex items-center justify-between px-4">
         <div className="flex items-center space-x-4">
-          {/* Ghost Logo */}
+          {/* Project Logo */}
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 text-[#f4c2c2]">
-              <Ghost size={24} />
+              <Square size={24} />
             </div>
           </div>
           
@@ -1855,7 +1861,14 @@ const MilanoteClone = () => {
             <FolderOpen size={16} />
           </button>
           
-
+          {/* Node Manager */}
+          <button
+            onClick={() => setShowNodeManager(true)}
+            className="p-2 text-gray-400 hover:text-white transition-colors"
+            title="Node Manager"
+          >
+            <Network size={16} />
+          </button>
           
           {/* Zoom Controls */}
           <div className="flex items-center space-x-2 bg-[#2d2d2d] rounded-lg px-3 py-1">
@@ -3301,6 +3314,236 @@ const MilanoteClone = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Node Manager Modal */}
+      {showNodeManager && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg w-[800px] h-[600px] max-w-[90vw] max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <h3 className="text-white text-lg font-medium flex items-center gap-2">
+                <Network size={20} />
+                Node Manager
+              </h3>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-[#2d2d2d] rounded-lg px-3 py-1">
+                  <button 
+                    onClick={() => setNodeManagerZoom(Math.max(nodeManagerZoom / 1.2, 0.3))}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ZoomOut size={14} />
+                  </button>
+                  <span className="text-sm font-mono text-white min-w-[50px] text-center">
+                    {Math.round(nodeManagerZoom * 100)}%
+                  </span>
+                  <button 
+                    onClick={() => setNodeManagerZoom(Math.min(nodeManagerZoom * 1.2, 3))}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ZoomIn size={14} />
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowNodeManager(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            
+            {/* Node Canvas */}
+            <div 
+              className="flex-1 relative overflow-hidden cursor-move"
+              onMouseDown={(e) => {
+                if (e.ctrlKey || e.metaKey) {
+                  e.preventDefault();
+                  const delta = e.shiftKey ? 0.8 : 1.2;
+                  setNodeManagerZoom(Math.min(Math.max(nodeManagerZoom * delta, 0.3), 3));
+                  return;
+                }
+                setIsNodeManagerPanning(true);
+                setNodeManagerPanStart({ x: e.clientX - nodeManagerPan.x, y: e.clientY - nodeManagerPan.y });
+              }}
+              onMouseMove={(e) => {
+                if (isNodeManagerPanning) {
+                  setNodeManagerPan({
+                    x: e.clientX - nodeManagerPanStart.x,
+                    y: e.clientY - nodeManagerPanStart.y
+                  });
+                }
+              }}
+              onMouseUp={() => setIsNodeManagerPanning(false)}
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                setNodeManagerZoom(Math.min(Math.max(nodeManagerZoom * delta, 0.3), 3));
+              }}
+            >
+              <div 
+                className="absolute inset-0"
+                style={{
+                  transform: `translate(${nodeManagerPan.x}px, ${nodeManagerPan.y}px) scale(${nodeManagerZoom})`,
+                  transformOrigin: '0 0'
+                }}
+              >
+                {/* Metro-style board network */}
+                <svg className="w-full h-full" style={{ minWidth: '1000px', minHeight: '800px' }}>
+                  {/* Grid background */}
+                  <defs>
+                    <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+                      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#2d2d2d" strokeWidth="1"/>
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#grid)" />
+                  
+                  {/* Central home node */}
+                  <g>
+                    <circle
+                      cx="400"
+                      cy="300"
+                      r="20"
+                      fill="#f4c2c2"
+                      stroke="#fff"
+                      strokeWidth="3"
+                      className="cursor-pointer"
+                      onDoubleClick={() => {
+                        setCurrentBoard('home');
+                        setShowNodeManager(false);
+                      }}
+                    />
+                    <text
+                      x="400"
+                      y="340"
+                      textAnchor="middle"
+                      fill="#f4c2c2"
+                      fontSize="14"
+                      fontWeight="bold"
+                      className="cursor-pointer select-none"
+                    >
+                      {boards.home?.name || 'Home'}
+                    </text>
+                  </g>
+                  
+                  {/* Connected board nodes */}
+                  {Object.entries(boards)
+                    .filter(([id]) => id !== 'home' && id !== currentBoard)
+                    .map(([boardId, board], index) => {
+                      const angle = (index * 2 * Math.PI) / Math.max(1, Object.keys(boards).length - 1);
+                      const radius = 150;
+                      const x = 400 + radius * Math.cos(angle);
+                      const y = 300 + radius * Math.sin(angle);
+                      
+                      return (
+                        <g key={boardId}>
+                          {/* Connection line */}
+                          <line
+                            x1="400"
+                            y1="300"
+                            x2={x}
+                            y2={y}
+                            stroke="#f4c2c2"
+                            strokeWidth="2"
+                            strokeDasharray="5,5"
+                            opacity="0.6"
+                          />
+                          
+                          {/* Board node */}
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="12"
+                            fill="#2d2d2d"
+                            stroke="#f4c2c2"
+                            strokeWidth="2"
+                            className="cursor-pointer hover:fill-[#3d3d3d] transition-colors"
+                            onDoubleClick={() => {
+                              setCurrentBoard(boardId);
+                              setShowNodeManager(false);
+                            }}
+                          />
+                          
+                          {/* Board name */}
+                          <text
+                            x={x}
+                            y={y + 25}
+                            textAnchor="middle"
+                            fill="#fff"
+                            fontSize="12"
+                            className="cursor-pointer select-none"
+                          >
+                            {board.name || `Board ${index + 1}`}
+                          </text>
+                          
+                          {/* Item count indicator */}
+                          <text
+                            x={x}
+                            y={y + 4}
+                            textAnchor="middle"
+                            fill="#f4c2c2"
+                            fontSize="10"
+                            fontWeight="bold"
+                            className="select-none"
+                          >
+                            {board.items?.length || 0}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  
+                  {/* Current board indicator */}
+                  {currentBoard !== 'home' && boards[currentBoard] && (
+                    <g>
+                      <circle
+                        cx="400"
+                        cy="150"
+                        r="15"
+                        fill="#f4c2c2"
+                        stroke="#fff"
+                        strokeWidth="3"
+                        opacity="0.8"
+                      />
+                      <text
+                        x="400"
+                        y="130"
+                        textAnchor="middle"
+                        fill="#f4c2c2"
+                        fontSize="12"
+                        fontWeight="bold"
+                        className="select-none"
+                      >
+                        Current: {boards[currentBoard]?.name}
+                      </text>
+                      <line
+                        x1="400"
+                        y1="165"
+                        x2="400"
+                        y2="280"
+                        stroke="#f4c2c2"
+                        strokeWidth="3"
+                        opacity="0.8"
+                      />
+                    </g>
+                  )}
+                </svg>
+              </div>
+            </div>
+            
+            {/* Footer Info */}
+            <div className="p-4 border-t border-gray-700 bg-[#2d2d2d] text-sm text-gray-400">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span>Double-click a node to navigate to that board</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span>Ctrl+Click to zoom • Mouse wheel to zoom • Drag to pan</span>
+                  <span>{Object.keys(boards).length} boards total</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
