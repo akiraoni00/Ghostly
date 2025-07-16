@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move, Network, MapPin, GitBranch } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Move, Network, MapPin, GitBranch } from 'lucide-react';
 
 // Custom Sharp Hand Icon Component
 const SharpHandIcon = ({ size = 16, className = "" }) => (
@@ -9,16 +9,15 @@ const SharpHandIcon = ({ size = 16, className = "" }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.5"
+    strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
   >
-    <path d="M6 11V9a3 3 0 0 1 3-3h0a3 3 0 0 1 3 3v2" />
-    <path d="M12 11V7a3 3 0 0 1 3-3h0a3 3 0 0 1 3 3v4" />
-    <path d="M18 11v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6" />
-    <path d="M6 11h12" />
-    <path d="M8 15h4" />
+    <path d="M8 13V9a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v4" />
+    <path d="M12 13V7a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v6" />
+    <path d="M16 13v4a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-4" />
+    <path d="M6 13h10" />
   </svg>
 );
 
@@ -1050,25 +1049,18 @@ const MilanoteClone = () => {
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
       
-      // Calculate zoom direction based on current zoom level
-      let targetZoom;
-      if (zoom < 0.5) {
-        targetZoom = 1; // Zoom to normal
-      } else if (zoom < 1.5) {
-        targetZoom = 2; // Zoom in further
-      } else if (zoom < 3) {
-        targetZoom = 0.5; // Zoom out
-      } else {
-        targetZoom = 1; // Reset to normal
-      }
+      // Continuous zoom behavior like Photoshop
+      // Left click = zoom in, right click = zoom out
+      const zoomFactor = e.button === 2 ? 0.8 : 1.25; // Right click zooms out, left click zooms in
+      const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.1), 5);
       
       // Smooth zoom with focal point at mouse cursor
       const newPan = {
-        x: mouseX - (mouseX - pan.x) * (targetZoom / zoom),
-        y: mouseY - (mouseY - pan.y) * (targetZoom / zoom)
+        x: mouseX - (mouseX - pan.x) * (newZoom / zoom),
+        y: mouseY - (mouseY - pan.y) * (newZoom / zoom)
       };
       
-      setZoom(targetZoom);
+      setZoom(newZoom);
       setPan(newPan);
       return;
     }
@@ -1456,9 +1448,17 @@ const MilanoteClone = () => {
       ...prev,
       [currentBoard]: {
         ...prev[currentBoard],
-        items: prev[currentBoard].items.map(item =>
-          item.id === itemId ? { ...item, color } : item
-        )
+        items: prev[currentBoard].items.map(item => {
+          if (item.id === itemId) {
+            // Use backgroundColor for notes, color for other items
+            if (item.type === 'note') {
+              return { ...item, backgroundColor: color };
+            } else {
+              return { ...item, color };
+            }
+          }
+          return item;
+        })
       }
     }));
     setColorPicker({ show: false, x: 0, y: 0, itemId: null });
@@ -1810,7 +1810,7 @@ const MilanoteClone = () => {
 
   // Tool components
   const tools = [
-    { id: 'hand', icon: HandIcon, label: 'Hand Tool' },
+    { id: 'hand', icon: SharpHandIcon, label: 'Hand Tool' },
     { id: 'select', icon: MousePointer, label: 'Select' },
     { id: 'board', icon: Square, label: 'Board' },
     { id: 'textfile', icon: FilePlus, label: 'New Text File' },
@@ -2005,12 +2005,12 @@ const MilanoteClone = () => {
                     <div
                       className="absolute pointer-events-none"
                       style={{
-                        left: item.x - 4,
-                        top: item.y - 4,
-                        width: item.width + 8,
-                        height: item.height + 8,
+                        left: item.type === 'board' ? item.x : item.x - 4,
+                        top: item.type === 'board' ? item.y : item.y - 4,
+                        width: item.type === 'board' ? item.width : item.width + 8,
+                        height: item.type === 'board' ? 192 : item.height + 8, // 192px = h-48 (board height)
                         border: '2px solid #f4c2c2',
-                        borderRadius: '8px',
+                        borderRadius: item.type === 'board' ? '12px' : '8px',
                         backgroundColor: 'rgba(244, 194, 194, 0.1)',
                         zIndex: 1000
                       }}
@@ -3560,23 +3560,7 @@ const MilanoteClone = () => {
                 className="w-8 h-8 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors"
                 style={{ backgroundColor: color }}
                 onClick={() => {
-                  setBoards(prev => ({
-                    ...prev,
-                    [currentBoard]: {
-                      ...prev[currentBoard],
-                      items: prev[currentBoard].items.map(item => {
-                        if (item.id === noteColorPicker.itemId) {
-                          // Use backgroundColor for notes, color for other items
-                          if (item.type === 'note') {
-                            return { ...item, backgroundColor: color };
-                          } else {
-                            return { ...item, color: color };
-                          }
-                        }
-                        return item;
-                      })
-                    }
-                  }));
+                  changeItemColor(noteColorPicker.itemId, color);
                   setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
                 }}
               />
@@ -3588,23 +3572,7 @@ const MilanoteClone = () => {
               type="color"
               className="w-full h-8 mt-1 rounded border border-gray-600 bg-[#2d2d2d]"
               onChange={(e) => {
-                setBoards(prev => ({
-                  ...prev,
-                  [currentBoard]: {
-                    ...prev[currentBoard],
-                    items: prev[currentBoard].items.map(item => {
-                      if (item.id === noteColorPicker.itemId) {
-                        // Use backgroundColor for notes, color for other items
-                        if (item.type === 'note') {
-                          return { ...item, backgroundColor: e.target.value };
-                        } else {
-                          return { ...item, color: e.target.value };
-                        }
-                      }
-                      return item;
-                    })
-                  }
-                }));
+                changeItemColor(noteColorPicker.itemId, e.target.value);
                 // Don't close immediately, let user continue adjusting
               }}
               onBlur={() => {
