@@ -91,6 +91,43 @@ const MilanoteClone = () => {
   const [showTagNameInput, setShowTagNameInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   
+  // Settings and theme state
+  const [showSettings, setShowSettings] = useState(false);
+  const [shortcuts, setShortcuts] = useState(() => {
+    const saved = localStorage.getItem('ghostly-shortcuts');
+    return saved ? JSON.parse(saved) : {
+      select: 'v',
+      board: 'b',
+      note: 'n', 
+      textfile: 't',
+      image: 'i',
+      link: 'l',
+      line: 'p',
+      todo: 'c',
+      tag: 'g',
+      undo: 'z',
+      redo: 'y',
+      zoomIn: '=',
+      zoomOut: '-',
+      nodeGraph: 'm',
+      projectManager: 'o',
+      tagManager: 'r'
+    };
+  });
+  const [colors, setColors] = useState(() => {
+    const saved = localStorage.getItem('ghostly-colors');
+    return saved ? JSON.parse(saved) : {
+      accent: '#f4c2c2',
+      background: '#1a1a1a',
+      surface: '#2d2d2d',
+      text: '#ffffff',
+      textSecondary: '#a0a0a0',
+      border: '#404040'
+    };
+  });
+  const [editingShortcut, setEditingShortcut] = useState(null);
+  const [editingColor, setEditingColor] = useState(null);
+  
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const boardImageInputRef = useRef(null);
@@ -120,6 +157,10 @@ const MilanoteClone = () => {
       boards,
       tags,
       openEditors,
+      shortcuts,
+      colors,
+      favoriteDirectory,
+      autoSaveEnabled,
       settings: {
         zoom,
         pan,
@@ -230,6 +271,28 @@ const MilanoteClone = () => {
         localStorage.setItem('ghostly-openEditors', JSON.stringify(projectData.openEditors));
       }
       
+      // Import shortcuts and colors
+      if (projectData.shortcuts) {
+        setShortcuts(projectData.shortcuts);
+        localStorage.setItem('ghostly-shortcuts', JSON.stringify(projectData.shortcuts));
+      }
+      
+      if (projectData.colors) {
+        setColors(projectData.colors);
+        localStorage.setItem('ghostly-colors', JSON.stringify(projectData.colors));
+      }
+      
+      // Import favorite directory and auto-save settings
+      if (projectData.favoriteDirectory) {
+        setFavoriteDirectory(projectData.favoriteDirectory);
+        localStorage.setItem('ghostly-favoriteDirectory', projectData.favoriteDirectory);
+      }
+      
+      if (typeof projectData.autoSaveEnabled === 'boolean') {
+        setAutoSaveEnabled(projectData.autoSaveEnabled);
+        localStorage.setItem('ghostly-autoSaveEnabled', projectData.autoSaveEnabled.toString());
+      }
+
       if (projectData.settings) {
         const { zoom: importZoom, pan: importPan, currentBoard: importCurrentBoard, 
                 boardHierarchy: importBoardHierarchy, nodeGraphSettings: importNodeGraphSettings,
@@ -335,6 +398,71 @@ const MilanoteClone = () => {
     // Auto-load after a short delay to let the app initialize
     setTimeout(autoLoad, 1000);
   }, [hasAutoLoaded, favoriteDirectory]);
+
+  // Keyboard shortcuts handler
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      const key = e.key.toLowerCase();
+      
+      switch (key) {
+        case shortcuts.select:
+          setSelectedTool('select');
+          break;
+        case shortcuts.board:
+          setSelectedTool('board');
+          break;
+        case shortcuts.note:
+          setSelectedTool('note');
+          break;
+        case shortcuts.textfile:
+          setSelectedTool('textfile');
+          break;
+        case shortcuts.image:
+          setSelectedTool('image');
+          break;
+        case shortcuts.link:
+          setSelectedTool('link');
+          break;
+        case shortcuts.line:
+          setSelectedTool('line');
+          break;
+        case shortcuts.todo:
+          setSelectedTool('todo');
+          break;
+        case shortcuts.tag:
+          setSelectedTool('tag');
+          break;
+        case shortcuts.nodeGraph:
+          setShowNodeGraph(!showNodeGraph);
+          break;
+        case shortcuts.projectManager:
+          setShowSaveLoadModal(!showSaveLoadModal);
+          break;
+        case shortcuts.tagManager:
+          setShowTagManager(!showTagManager);
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [shortcuts, showNodeGraph, showSaveLoadModal, showTagManager]);
+
+  // Apply colors to CSS variables
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--accent-color', colors.accent);
+    root.style.setProperty('--background-color', colors.background);
+    root.style.setProperty('--surface-color', colors.surface);
+    root.style.setProperty('--text-color', colors.text);
+    root.style.setProperty('--text-secondary-color', colors.textSecondary);
+    root.style.setProperty('--border-color', colors.border);
+  }, [colors]);
 
   // Enhanced download latest backup functionality
   const downloadLatestBackup = useCallback(() => {
@@ -1382,6 +1510,15 @@ const MilanoteClone = () => {
             title="Node Graph"
           >
             <GitBranch size={16} />
+          </button>
+          
+          {/* Settings */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-gray-400 hover:text-white transition-colors"
+            title="Settings"
+          >
+            <Settings size={16} />
           </button>
           
           {/* Zoom Controls */}
@@ -2867,50 +3004,50 @@ const MilanoteClone = () => {
           <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-96 max-w-[90vw]">
             <h3 className="text-white text-lg font-medium mb-4">Project Manager</h3>
             
-            {/* Favorite Directory Section */}
+            {/* Auto-Sync Settings */}
             <div className="space-y-4">
               <div className="border-b border-gray-700 pb-4">
-                <h4 className="text-white font-medium mb-2">Favorite Directory</h4>
+                <h4 className="text-white font-medium mb-2">Auto-Sync</h4>
                 <p className="text-gray-400 text-sm mb-3">
-                  Set your favorite project directory for auto-load and auto-save
+                  Auto-save and auto-load your project data
                 </p>
                 {favoriteDirectory ? (
                   <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-xs text-gray-400">Favorite Directory:</div>
+                        <div className="text-xs text-gray-400">Project:</div>
                         <div className="text-white text-sm">{favoriteDirectory}</div>
-                        <div className="text-xs text-gray-500">
-                          Auto-sync: {autoSaveEnabled ? 'Enabled' : 'Disabled'}
+                        <div className="flex items-center gap-2 text-xs mt-1">
+                          <span className="text-gray-400">Auto-sync:</span>
+                          {autoSaveEnabled ? (
+                            <span className="text-green-400 flex items-center gap-1">
+                              <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                              Enabled
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">Disabled</span>
+                          )}
                         </div>
                       </div>
                       <button
-                        onClick={() => {
-                          setFavoriteDirectory('');
-                          setAutoSaveEnabled(false);
-                          localStorage.removeItem('ghostly-favoriteDirectory');
-                          localStorage.removeItem('ghostly-autoSaveEnabled');
-                          localStorage.removeItem('ghostly-favoriteDirectoryData');
-                        }}
-                        className="text-gray-400 hover:text-white p-1"
-                        title="Clear favorite directory"
+                        onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
+                        className={`px-3 py-1 rounded text-xs transition-colors ${
+                          autoSaveEnabled 
+                            ? 'bg-green-600 text-white hover:bg-green-700' 
+                            : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                        }`}
                       >
-                        <X size={16} />
+                        {autoSaveEnabled ? 'ON' : 'OFF'}
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-gray-500 text-sm mb-3">
-                    No favorite directory set. Import a project folder to set it up.
+                  <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
+                    <div className="text-gray-500 text-sm">
+                      Import a project file to enable auto-sync
+                    </div>
                   </div>
                 )}
-                <button
-                  onClick={() => favoriteDirectoryInputRef.current?.click()}
-                  className="w-full flex items-center justify-center space-x-2 bg-[#f4c2c2] text-black rounded-lg px-4 py-2 hover:bg-[#f5d2d2] transition-colors"
-                >
-                  <Heart size={16} />
-                  <span>Set Favorite Directory</span>
-                </button>
               </div>
 
               {/* Import Section */}
@@ -2930,32 +3067,19 @@ const MilanoteClone = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => projectFolderInputRef.current?.click()}
-                      className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
-                    >
-                      <Upload size={16} />
-                      <span>Import Project File</span>
-                    </button>
-                    
-                    {/* Local Backup Recovery */}
-                    {localStorage.getItem('ghostly-project-backup') && (
-                      <button
-                        onClick={downloadLatestBackup}
-                        className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-gray-400 rounded-lg px-4 py-2 hover:bg-[#3d3d3d] hover:text-white transition-colors text-xs"
-                      >
-                        <Download size={14} />
-                        <span>Download Latest Backup</span>
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => projectFolderInputRef.current?.click()}
+                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
+                  >
+                    <Upload size={16} />
+                    <span>Import Project File</span>
+                  </button>
                 )}
               </div>
 
-              {/* Export & Backup Section */}
+              {/* Export Section */}
               <div>
-                <h4 className="text-white font-medium mb-2">Export & Backup</h4>
+                <h4 className="text-white font-medium mb-2">Export Project</h4>
                 <p className="text-gray-400 text-sm mb-3">
                   Download your project as a backup file
                 </p>
@@ -2964,39 +3088,24 @@ const MilanoteClone = () => {
                   <div className="text-white text-sm">
                     {Object.keys(boards).length} boards • {tags.length} tags • {Object.values(boards).reduce((sum, board) => sum + board.items.length, 0)} items
                   </div>
-                  {autoSaveEnabled && favoriteDirectory && (
-                    <div className="text-xs text-green-400 mt-1">
-                      ✓ Auto-save enabled for "{favoriteDirectory}"
-                    </div>
+                </div>
+                <button
+                  onClick={exportProject}
+                  disabled={isExporting}
+                  className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors disabled:opacity-50 border border-[#f4c2c2]"
+                >
+                  {isExporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-[#f4c2c2] border-t-transparent rounded-full animate-spin" />
+                      <span>Exporting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={16} />
+                      <span>Export Project</span>
+                    </>
                   )}
-                </div>
-                <div className="space-y-2">
-                  <button
-                    onClick={exportProject}
-                    disabled={isExporting}
-                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors disabled:opacity-50 border border-[#f4c2c2]"
-                  >
-                    {isExporting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-[#f4c2c2] border-t-transparent rounded-full animate-spin" />
-                        <span>Exporting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download size={16} />
-                        <span>Export Project</span>
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={saveToLocalStorage}
-                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-gray-400 rounded-lg px-4 py-2 hover:bg-[#3d3d3d] hover:text-white transition-colors text-xs"
-                  >
-                    <Save size={14} />
-                    <span>Manual Save to Browser</span>
-                  </button>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -3008,6 +3117,130 @@ const MilanoteClone = () => {
                 onClick={() => setShowSaveLoadModal(false)}
                 className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
                 disabled={isExporting || isImporting}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-[600px] max-w-[90vw] max-h-[80vh] overflow-y-auto">
+            <h3 className="text-white text-lg font-medium mb-4">Settings</h3>
+            
+            <div className="space-y-6">
+              {/* Keyboard Shortcuts */}
+              <div>
+                <h4 className="text-white font-medium mb-3">Keyboard Shortcuts</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(shortcuts).map(([action, key]) => (
+                    <div key={action} className="flex items-center justify-between bg-[#2d2d2d] rounded p-3">
+                      <span className="text-gray-300 text-sm capitalize">
+                        {action === 'textfile' ? 'Text File' : action === 'nodeGraph' ? 'Node Graph' : action.replace(/([A-Z])/g, ' $1')}
+                      </span>
+                      {editingShortcut === action ? (
+                        <input
+                          type="text"
+                          value={key}
+                          onChange={(e) => {
+                            const newKey = e.target.value.toLowerCase();
+                            if (newKey.length <= 1) {
+                              setShortcuts(prev => ({ ...prev, [action]: newKey }));
+                            }
+                          }}
+                          onBlur={() => {
+                            setEditingShortcut(null);
+                            localStorage.setItem('ghostly-shortcuts', JSON.stringify(shortcuts));
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              setEditingShortcut(null);
+                              localStorage.setItem('ghostly-shortcuts', JSON.stringify(shortcuts));
+                            }
+                          }}
+                          className="bg-[#1a1a1a] border border-[#f4c2c2] rounded px-2 py-1 text-white text-sm w-12 text-center"
+                          autoFocus
+                          maxLength={1}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setEditingShortcut(action)}
+                          className="bg-[#1a1a1a] border border-gray-600 rounded px-2 py-1 text-[#f4c2c2] text-sm min-w-[48px] hover:border-[#f4c2c2] transition-colors"
+                        >
+                          {key.toUpperCase() || '?'}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Theme */}
+              <div>
+                <h4 className="text-white font-medium mb-3">Color Theme</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(colors).map(([colorKey, colorValue]) => (
+                    <div key={colorKey} className="flex items-center justify-between bg-[#2d2d2d] rounded p-3">
+                      <span className="text-gray-300 text-sm capitalize">
+                        {colorKey === 'textSecondary' ? 'Text Secondary' : colorKey}
+                      </span>
+                      {editingColor === colorKey ? (
+                        <input
+                          type="color"
+                          value={colorValue}
+                          onChange={(e) => {
+                            const newColors = { ...colors, [colorKey]: e.target.value };
+                            setColors(newColors);
+                            localStorage.setItem('ghostly-colors', JSON.stringify(newColors));
+                          }}
+                          onBlur={() => setEditingColor(null)}
+                          className="w-12 h-8 rounded border-none cursor-pointer"
+                          autoFocus
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setEditingColor(colorKey)}
+                          className="w-12 h-8 rounded border border-gray-600 hover:border-[#f4c2c2] transition-colors"
+                          style={{ backgroundColor: colorValue }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => {
+                      const defaultColors = {
+                        accent: '#f4c2c2',
+                        background: '#1a1a1a',
+                        surface: '#2d2d2d',
+                        text: '#ffffff',
+                        textSecondary: '#a0a0a0',
+                        border: '#404040'
+                      };
+                      setColors(defaultColors);
+                      localStorage.setItem('ghostly-colors', JSON.stringify(defaultColors));
+                    }}
+                    className="px-3 py-1 bg-[#2d2d2d] text-gray-400 rounded text-sm hover:text-white transition-colors"
+                  >
+                    Reset to Default
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => {
+                  setShowSettings(false);
+                  setEditingShortcut(null);
+                  setEditingColor(null);
+                }}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
               >
                 Close
               </button>
