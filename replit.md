@@ -127,14 +127,14 @@ Preferred communication style: Simple, everyday language.
 - **Tag Associations**: Built tag-based connection system for knowledge graph functionality
 - **Visual Enhancements**: Maintained consistent pink (#f4c2c2) theme throughout new features
 
-### Latest Addition: Comprehensive Save/Load System (January 2025)
-- **Folder-Based Export**: Export creates multiple backup files (project-data.json, boards-backup.json, tags-backup.json, settings-backup.json, text-files.json, README.txt)
-- **Directory Import**: Import entire project directories with all files and configurations
-- **Auto-Save to Directory**: Set a project directory for automatic saves every 60 seconds
-- **Complete State Persistence**: Saves all boards, items, tags, settings, zoom, pan, node graph state, and editor positions
-- **Visual Auto-Save Indicator**: Green pulsing dot on folder icon when auto-save is enabled
-- **Local Data Permanence**: Full self-hosted solution for permanent local data storage
-- **Robust Data Export**: Comprehensive backup system with detailed README instructions
-- **Error Handling**: Enhanced import/export error messages and progress feedback
+### Latest Addition: Seamless Auto-Loading System (January 2025)
+- **Favorite Directory System**: Set a favorite project directory that persists across app sessions
+- **Auto-Loading on Startup**: App automatically loads project from favorite directory when started
+- **Seamless Import/Auto-Save**: Importing a directory automatically sets it as favorite and enables auto-save
+- **Continuous Sync**: Auto-save syncs changes to favorite directory every 60 seconds
+- **Visual Status Indicator**: Green pulsing dot shows when auto-sync is active
+- **Self-Hosted Workflow**: Perfect integration for local development with persistent data
+- **Directory-Only Import**: Simplified to only support directory import (no single files)
+- **Persistent Configuration**: Favorite directory path saved locally for seamless app restarts
 
-The application is now a fully self-contained, self-hosted knowledge management and visual organization tool that provides permanent local data storage without relying on cloud services. Users can maintain complete control over their data with automated backups to local directories.
+The application now provides a completely seamless self-hosted experience where users can set up their project directory once and have it automatically load and sync across all app sessions, enabling permanent local data storage without any cloud dependencies.
