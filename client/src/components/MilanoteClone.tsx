@@ -73,6 +73,14 @@ const MilanoteClone = () => {
   const [isNodeGraphPanning, setIsNodeGraphPanning] = useState(false);
   const [nodeGraphPanStart, setNodeGraphPanStart] = useState({ x: 0, y: 0 });
   const [showTagManager, setShowTagManager] = useState(false);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [rectangleSelection, setRectangleSelection] = useState(null);
+  const [isRectangleSelecting, setIsRectangleSelecting] = useState(false);
+  const [draggedItems, setDraggedItems] = useState([]);
+  const [multiDragOffset, setMultiDragOffset] = useState({ x: 0, y: 0 });
+  const [noteColorPicker, setNoteColorPicker] = useState({ show: false, x: 0, y: 0, itemId: null });
+  const [linePreview, setLinePreview] = useState(null);
+  const [editingLine, setEditingLine] = useState(null);
   const [pendingTextFileImport, setPendingTextFileImport] = useState(null);
   const [showTagSelectionModal, setShowTagSelectionModal] = useState(false);
   const [showSaveLoadModal, setShowSaveLoadModal] = useState(false);
@@ -97,6 +105,7 @@ const MilanoteClone = () => {
     const saved = localStorage.getItem('ghostly-shortcuts');
     return saved ? JSON.parse(saved) : {
       select: 'v',
+      rectangleSelect: 'r',
       board: 'b',
       note: 'n', 
       textfile: 't',
@@ -111,7 +120,7 @@ const MilanoteClone = () => {
       zoomOut: '-',
       nodeGraph: 'm',
       projectManager: 'o',
-      tagManager: 'r'
+      tagManager: 'f'
     };
   });
   const [colors, setColors] = useState(() => {
@@ -400,6 +409,9 @@ const MilanoteClone = () => {
       switch (key) {
         case shortcuts.select:
           setSelectedTool('select');
+          break;
+        case shortcuts.rectangleSelect:
+          setSelectedTool('rectangle-select');
           break;
         case shortcuts.board:
           setSelectedTool('board');
@@ -824,7 +836,7 @@ const MilanoteClone = () => {
     saveToHistory();
   }, [selectedTool, currentBoard, saveToHistory, zoom, pan]);
 
-  // Handle line drawing
+  // Handle line drawing with preview
   const handleLineDrawing = useCallback((e) => {
     if (selectedTool !== 'line') return;
     
@@ -843,6 +855,16 @@ const MilanoteClone = () => {
       
       const canvasEndX = (endX - pan.x) / zoom;
       const canvasEndY = (endY - pan.y) / zoom;
+      
+      // Show preview line
+      setLinePreview({
+        startX: canvasStartX,
+        startY: canvasStartY,
+        endX: canvasEndX,
+        endY: canvasEndY,
+        color: '#f4c2c2',
+        strokeWidth: 2
+      });
     };
     
     const handleMouseUp = (upEvent) => {
@@ -876,6 +898,7 @@ const MilanoteClone = () => {
       }));
       
       setSelectedTool('select');
+      setLinePreview(null);
       saveToHistory();
       
       document.removeEventListener('mousemove', handleMouseMove);
@@ -885,6 +908,72 @@ const MilanoteClone = () => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, [selectedTool, currentBoard, saveToHistory, zoom, pan]);
+
+  // Handle rectangle selection
+  const handleRectangleSelection = useCallback((e) => {
+    if (selectedTool !== 'rectangle-select') return;
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    
+    const canvasStartX = (startX - pan.x) / zoom;
+    const canvasStartY = (startY - pan.y) / zoom;
+    
+    setIsRectangleSelecting(true);
+    setRectangleSelection({
+      startX: canvasStartX,
+      startY: canvasStartY,
+      endX: canvasStartX,
+      endY: canvasStartY
+    });
+    
+    const handleMouseMove = (moveEvent) => {
+      const endX = moveEvent.clientX - rect.left;
+      const endY = moveEvent.clientY - rect.top;
+      
+      const canvasEndX = (endX - pan.x) / zoom;
+      const canvasEndY = (endY - pan.y) / zoom;
+      
+      setRectangleSelection({
+        startX: canvasStartX,
+        startY: canvasStartY,
+        endX: canvasEndX,
+        endY: canvasEndY
+      });
+    };
+    
+    const handleMouseUp = () => {
+      if (!rectangleSelection) return;
+      
+      const { startX, startY, endX, endY } = rectangleSelection;
+      const minX = Math.min(startX, endX);
+      const maxX = Math.max(startX, endX);
+      const minY = Math.min(startY, endY);
+      const maxY = Math.max(startY, endY);
+      
+      // Find items within selection rectangle
+      const selectedItemsInRect = boards[currentBoard].items.filter(item => {
+        const itemCenterX = item.x + (item.width || 0) / 2;
+        const itemCenterY = item.y + (item.height || 0) / 2;
+        return itemCenterX >= minX && itemCenterX <= maxX && 
+               itemCenterY >= minY && itemCenterY <= maxY;
+      });
+      
+      setSelectedItems(selectedItemsInRect.map(item => item.id));
+      setIsRectangleSelecting(false);
+      setRectangleSelection(null);
+      setSelectedTool('select');
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [selectedTool, currentBoard, zoom, pan, rectangleSelection, boards]);
 
   // Handle canvas click
   const handleCanvasClick = useCallback((e) => {
@@ -951,21 +1040,90 @@ const MilanoteClone = () => {
       const canvasX = (x - pan.x) / zoom;
       const canvasY = (y - pan.y) / zoom;
       
-      setDragOffset({ x: canvasX - item.x, y: canvasY - item.y });
-      setDraggedItem(item);
-      setIsDragging(true);
+      // Check if clicking on selected items group
+      if (selectedItems.includes(item.id)) {
+        // Start multi-item drag
+        setDraggedItems(boards[currentBoard].items.filter(item => selectedItems.includes(item.id)));
+        setMultiDragOffset({
+          x: canvasX - item.x,
+          y: canvasY - item.y
+        });
+        setIsDragging(true);
+      } else {
+        // Single item drag
+        setDragOffset({ x: canvasX - item.x, y: canvasY - item.y });
+        setDraggedItem(item);
+        setIsDragging(true);
+        // Clear selection when clicking outside selected items
+        setSelectedItems([]);
+      }
+      
+      // Check if clicking on a line for editing
+      if (item.type === 'line') {
+        setEditingLine(item.id);
+      }
+      
       setContextMenu(null);
     } else {
+      if (selectedTool === 'line') {
+        handleLineDrawing(e);
+        return;
+      }
+      
+      if (selectedTool === 'rectangle-select') {
+        handleRectangleSelection(e);
+        return;
+      }
+      
+      if (selectedTool !== 'select') {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          createItem(e.clientX - rect.left, e.clientY - rect.top);
+        }
+        return;
+      }
+      
       if (e.button === 0 && selectedTool === 'select') {
         setIsPanning(true);
         setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        // Clear selection when clicking on empty space
+        setSelectedItems([]);
       }
     }
-  }, [zoom, pan, selectedTool]);
+  }, [zoom, pan, selectedTool, selectedItems, boards, currentBoard, handleLineDrawing, handleRectangleSelection, createItem]);
 
   // Handle mouse move for dragging and panning
   const handleMouseMove = useCallback((e) => {
-    if (isDragging && draggedItem) {
+    if (isDragging && draggedItems.length > 0) {
+      // Multi-item drag
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const canvasX = (x - pan.x) / zoom - multiDragOffset.x;
+      const canvasY = (y - pan.y) / zoom - multiDragOffset.y;
+      
+      // Calculate offset for the reference item
+      const referenceItem = draggedItems[0];
+      const deltaX = canvasX - referenceItem.x;
+      const deltaY = canvasY - referenceItem.y;
+      
+      setBoards(prev => ({
+        ...prev,
+        [currentBoard]: {
+          ...prev[currentBoard],
+          items: prev[currentBoard].items.map(item => {
+            if (selectedItems.includes(item.id)) {
+              return { ...item, x: item.x + deltaX, y: item.y + deltaY };
+            }
+            return item;
+          })
+        }
+      }));
+    } else if (isDragging && draggedItem) {
+      // Single item drag
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
       
@@ -997,6 +1155,7 @@ const MilanoteClone = () => {
     if (isDragging) {
       setIsDragging(false);
       setDraggedItem(null);
+      setDraggedItems([]);
       saveToHistory();
     }
     if (isPanning) {
@@ -1398,6 +1557,11 @@ const MilanoteClone = () => {
   // Tool components
   const tools = [
     { id: 'select', icon: MousePointer, label: 'Select' },
+    { id: 'rectangle-select', icon: () => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="5,5" />
+      </svg>
+    ), label: 'Rectangle Select' },
     { id: 'board', icon: Square, label: 'Board' },
     { id: 'textfile', icon: FilePlus, label: 'New Text File' },
     { id: 'textfile-import', icon: Upload, label: 'Import Text File' },
@@ -2067,6 +2231,62 @@ const MilanoteClone = () => {
                   </div>
                 </div>
               ))}
+              
+              {/* Rectangle Selection Overlay */}
+              {rectangleSelection && (
+                <div
+                  className="absolute pointer-events-none border-2 border-dashed border-[#f4c2c2] bg-[#f4c2c2] bg-opacity-20"
+                  style={{
+                    left: Math.min(rectangleSelection.startX, rectangleSelection.endX),
+                    top: Math.min(rectangleSelection.startY, rectangleSelection.endY),
+                    width: Math.abs(rectangleSelection.endX - rectangleSelection.startX),
+                    height: Math.abs(rectangleSelection.endY - rectangleSelection.startY)
+                  }}
+                />
+              )}
+              
+              {/* Line Preview */}
+              {linePreview && (
+                <svg
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: Math.min(linePreview.startX, linePreview.endX),
+                    top: Math.min(linePreview.startY, linePreview.endY),
+                    width: Math.abs(linePreview.endX - linePreview.startX),
+                    height: Math.abs(linePreview.endY - linePreview.startY)
+                  }}
+                  width={Math.abs(linePreview.endX - linePreview.startX)}
+                  height={Math.abs(linePreview.endY - linePreview.startY)}
+                >
+                  <line
+                    x1={linePreview.startX - Math.min(linePreview.startX, linePreview.endX)}
+                    y1={linePreview.startY - Math.min(linePreview.startY, linePreview.endY)}
+                    x2={linePreview.endX - Math.min(linePreview.startX, linePreview.endX)}
+                    y2={linePreview.endY - Math.min(linePreview.startY, linePreview.endY)}
+                    stroke={linePreview.color}
+                    strokeWidth={linePreview.strokeWidth}
+                    strokeDasharray="5,5"
+                  />
+                </svg>
+              )}
+              
+              {/* Selected Items Outline */}
+              {selectedItems.map(itemId => {
+                const item = boards[currentBoard].items.find(i => i.id === itemId);
+                if (!item) return null;
+                return (
+                  <div
+                    key={`selection-${itemId}`}
+                    className="absolute pointer-events-none border-2 border-[#f4c2c2] border-dashed"
+                    style={{
+                      left: item.x - 2,
+                      top: item.y - 2,
+                      width: item.width + 4,
+                      height: item.height + 4
+                    }}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>
@@ -2093,6 +2313,23 @@ const MilanoteClone = () => {
             >
               <Image size={16} />
               <span>Set Image</span>
+            </button>
+          )}
+          {contextMenu.item.type === 'note' && (
+            <button
+              onClick={() => {
+                setNoteColorPicker({
+                  show: true,
+                  x: contextMenu.x,
+                  y: contextMenu.y + 30,
+                  itemId: contextMenu.item.id
+                });
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2 text-gray-300 hover:bg-[#2d2d2d] hover:text-white transition-colors flex items-center space-x-2"
+            >
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: contextMenu.item.backgroundColor }} />
+              <span>Change Color</span>
             </button>
           )}
           <button
@@ -3203,7 +3440,10 @@ const MilanoteClone = () => {
                         surface: '#2d2d2d',
                         text: '#ffffff',
                         textSecondary: '#a0a0a0',
-                        border: '#404040'
+                        border: '#404040',
+                        noteDefault: '#f5f5dc',
+                        noteSelected: '#fff2cc',
+                        lineDefault: '#f4c2c2'
                       };
                       setColors(defaultColors);
                       localStorage.setItem('ghostly-colors', JSON.stringify(defaultColors));
@@ -3229,6 +3469,52 @@ const MilanoteClone = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note Color Picker */}
+      {noteColorPicker.show && (
+        <div
+          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-4 z-50"
+          style={{ left: noteColorPicker.x, top: noteColorPicker.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h4 className="text-white font-medium mb-3">Note Color</h4>
+          <div className="grid grid-cols-6 gap-2">
+            {[
+              '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
+              '#ccffe6', '#ffccf2', '#d4ccff', '#fff4cc', '#ccffcc', '#ffcce6',
+              '#e6f2ff', '#f2ffcc', '#ffccdc', '#ccf2e6', '#e6ccf2', '#f2ccff'
+            ].map((color, index) => (
+              <button
+                key={index}
+                className="w-8 h-8 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors"
+                style={{ backgroundColor: color }}
+                onClick={() => {
+                  setBoards(prev => ({
+                    ...prev,
+                    [currentBoard]: {
+                      ...prev[currentBoard],
+                      items: prev[currentBoard].items.map(item =>
+                        item.id === noteColorPicker.itemId 
+                          ? { ...item, backgroundColor: color }
+                          : item
+                      )
+                    }
+                  }));
+                  setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+                }}
+              />
+            ))}
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={() => setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null })}
+              className="px-3 py-1 text-gray-400 hover:text-white transition-colors text-sm"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
