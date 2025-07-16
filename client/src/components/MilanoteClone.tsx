@@ -79,12 +79,13 @@ const MilanoteClone = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState('');
-  const [projectDirectory, setProjectDirectory] = useState(() => {
-    return localStorage.getItem('ghostly-projectDirectory') || '';
+  const [favoriteDirectory, setFavoriteDirectory] = useState(() => {
+    return localStorage.getItem('ghostly-favoriteDirectory') || '';
   });
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
     return localStorage.getItem('ghostly-autoSaveEnabled') === 'true';
   });
+  const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerTag, setColorPickerTag] = useState(null);
   const [showTagNameInput, setShowTagNameInput] = useState(false);
@@ -97,6 +98,7 @@ const MilanoteClone = () => {
   const audioFileInputRef = useRef(null);
   const projectFolderInputRef = useRef(null);
   const projectDirectoryInputRef = useRef(null);
+  const favoriteDirectoryInputRef = useRef(null);
   const [selectedBoardForImage, setSelectedBoardForImage] = useState(null);
   const [draggingEditor, setDraggingEditor] = useState(null);
   const [editorDragOffset, setEditorDragOffset] = useState({ x: 0, y: 0 });
@@ -292,12 +294,12 @@ Keep this folder safe as a backup of your work!
       URL.revokeObjectURL(readmeUrl);
 
       // If this is a manual export, suggest setting up auto-save
-      if (!isAutoSave && !projectDirectory) {
+      if (!isAutoSave && !favoriteDirectory) {
         setTimeout(() => {
-          if (confirm('Export complete!\n\nWould you like to enable auto-save for this project?\n\nThis will automatically save changes every minute when you make modifications.')) {
+          if (confirm('Export complete!\n\nWould you like to set this as your favorite directory for auto-save and auto-load?\n\nThis will automatically save changes every minute and load this project when you start the app.')) {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
             const suggestedName = `ghostly-project-${timestamp}`;
-            setProjectDirectoryPath(suggestedName);
+            setFavoriteDirectoryPath(suggestedName);
           }
         }, 1000);
       }
@@ -433,6 +435,13 @@ Keep this folder safe as a backup of your work!
     }
   };
 
+  const handleFavoriteDirectorySelect = (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length > 0) {
+      importProjectDirectory(files);
+    }
+  };
+
   // Import from multiple files in a directory
   const importProjectDirectory = async (files) => {
     setIsImporting(true);
@@ -508,7 +517,15 @@ Keep this folder safe as a backup of your work!
       // Set up auto-save for this directory
       setImportProgress('Setting up auto-save...');
       const directoryName = files[0].webkitRelativePath.split('/')[0];
-      setProjectDirectoryPath(directoryName);
+      setFavoriteDirectoryPath(directoryName);
+      
+      // Save the project data for auto-loading
+      const favoriteData = {
+        directoryPath: directoryName,
+        projectData,
+        lastSync: new Date().toISOString()
+      };
+      localStorage.setItem('ghostly-favoriteDirectoryData', JSON.stringify(favoriteData));
       
     } catch (error) {
       console.error('Directory import failed:', error);
@@ -518,13 +535,33 @@ Keep this folder safe as a backup of your work!
     }
   };
 
-  // Set project directory for auto-save
-  const setProjectDirectoryPath = (directoryName) => {
-    setProjectDirectory(directoryName);
-    localStorage.setItem('ghostly-projectDirectory', directoryName);
+  // Set favorite directory for auto-save and auto-load
+  const setFavoriteDirectoryPath = (directoryName) => {
+    setFavoriteDirectory(directoryName);
+    localStorage.setItem('ghostly-favoriteDirectory', directoryName);
     setAutoSaveEnabled(true);
     localStorage.setItem('ghostly-autoSaveEnabled', 'true');
   };
+
+  // Auto-load from favorite directory on startup
+  useEffect(() => {
+    if (favoriteDirectory && !hasAutoLoaded) {
+      // Check if there's data in localStorage that matches the favorite directory
+      const savedData = localStorage.getItem('ghostly-favoriteDirectoryData');
+      if (savedData) {
+        try {
+          const data = JSON.parse(savedData);
+          if (data.directoryPath === favoriteDirectory) {
+            // Auto-load the project data
+            importProject({ text: () => Promise.resolve(JSON.stringify(data.projectData)) });
+            setHasAutoLoaded(true);
+          }
+        } catch (error) {
+          console.warn('Failed to auto-load from favorite directory:', error);
+        }
+      }
+    }
+  }, [favoriteDirectory, hasAutoLoaded]);
 
   // Add new tag
   const addTag = useCallback((tagName) => {
@@ -664,13 +701,48 @@ Keep this folder safe as a backup of your work!
     }
   }, [openEditors]);
 
-  // Auto-save to project directory when enabled
+  // Auto-save to favorite directory when enabled
   useEffect(() => {
-    if (!autoSaveEnabled || !projectDirectory) return;
+    if (!autoSaveEnabled || !favoriteDirectory) return;
     
     const autoSaveInterval = setInterval(async () => {
       try {
-        // Trigger auto-save export
+        // Create project data for auto-save
+        const projectData = {
+          version: "1.0.0",
+          timestamp: new Date().toISOString(),
+          boards,
+          tags,
+          openEditors,
+          settings: {
+            zoom,
+            pan,
+            currentBoard,
+            boardHierarchy,
+            nodeGraphSettings,
+            showNodeGraph,
+            selectedTool,
+            history: history.slice(-50),
+            historyIndex
+          },
+          metadata: {
+            totalBoards: Object.keys(boards).length,
+            totalTags: tags.length,
+            totalItems: Object.values(boards).reduce((sum, board) => sum + board.items.length, 0),
+            lastAutoSave: new Date().toLocaleString(),
+            isAutoSave: true
+          }
+        };
+        
+        // Save to favorite directory data cache
+        const favoriteData = {
+          directoryPath: favoriteDirectory,
+          projectData,
+          lastSync: new Date().toISOString()
+        };
+        localStorage.setItem('ghostly-favoriteDirectoryData', JSON.stringify(favoriteData));
+        
+        // Trigger export (this will download files for manual backup)
         await exportProject(true);
       } catch (error) {
         console.warn('Auto-save to directory failed:', error);
@@ -678,7 +750,7 @@ Keep this folder safe as a backup of your work!
     }, 60000); // Auto-save every 60 seconds when directory is set
 
     return () => clearInterval(autoSaveInterval);
-  }, [boards, tags, openEditors, zoom, pan, currentBoard, boardHierarchy, nodeGraphSettings, showNodeGraph, selectedTool, autoSaveEnabled, projectDirectory]);
+  }, [boards, tags, openEditors, zoom, pan, currentBoard, boardHierarchy, nodeGraphSettings, showNodeGraph, selectedTool, autoSaveEnabled, favoriteDirectory, history, historyIndex]);
 
   // Create new item based on selected tool
   const createItem = useCallback((x, y, type = selectedTool) => {
@@ -1444,18 +1516,18 @@ Keep this folder safe as a backup of your work!
           <button
             onClick={() => setShowSaveLoadModal(true)}
             className={`p-2 transition-colors relative ${
-              autoSaveEnabled && projectDirectory
+              autoSaveEnabled && favoriteDirectory
                 ? 'text-green-400 hover:text-green-300'
                 : 'text-gray-400 hover:text-white'
             }`}
             title={
-              autoSaveEnabled && projectDirectory
-                ? `Auto-save enabled: ${projectDirectory}`
-                : 'Save/Load Project'
+              autoSaveEnabled && favoriteDirectory
+                ? `Auto-sync enabled: ${favoriteDirectory}`
+                : 'Project Manager'
             }
           >
             <FolderOpen size={16} />
-            {autoSaveEnabled && projectDirectory && (
+            {autoSaveEnabled && favoriteDirectory && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
             )}
           </button>
@@ -2954,45 +3026,59 @@ Keep this folder safe as a backup of your work!
       {showSaveLoadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-6 w-96 max-w-[90vw]">
-            <h3 className="text-white text-lg font-medium mb-4">Project Management</h3>
+            <h3 className="text-white text-lg font-medium mb-4">Project Manager</h3>
             
-            {/* Export Section */}
+            {/* Favorite Directory Section */}
             <div className="space-y-4">
               <div className="border-b border-gray-700 pb-4">
-                <h4 className="text-white font-medium mb-2">Export Project</h4>
+                <h4 className="text-white font-medium mb-2">Favorite Directory</h4>
                 <p className="text-gray-400 text-sm mb-3">
-                  Download all your boards, notes, tags, and settings as backup files
+                  Set your favorite project directory for auto-load and auto-save
                 </p>
-                <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
-                  <div className="text-xs text-gray-400">Current Project:</div>
-                  <div className="text-white text-sm">
-                    {Object.keys(boards).length} boards • {tags.length} tags • {Object.values(boards).reduce((sum, board) => sum + board.items.length, 0)} items
+                {favoriteDirectory ? (
+                  <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs text-gray-400">Favorite Directory:</div>
+                        <div className="text-white text-sm">{favoriteDirectory}</div>
+                        <div className="text-xs text-gray-500">
+                          Auto-sync: {autoSaveEnabled ? 'Enabled' : 'Disabled'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setFavoriteDirectory('');
+                          setAutoSaveEnabled(false);
+                          localStorage.removeItem('ghostly-favoriteDirectory');
+                          localStorage.removeItem('ghostly-autoSaveEnabled');
+                          localStorage.removeItem('ghostly-favoriteDirectoryData');
+                        }}
+                        className="text-gray-400 hover:text-white p-1"
+                        title="Clear favorite directory"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-gray-500 text-sm mb-3">
+                    No favorite directory set. Import a project folder to set it up.
+                  </div>
+                )}
                 <button
-                  onClick={exportProject}
-                  disabled={isExporting}
-                  className="w-full flex items-center justify-center space-x-2 bg-[#f4c2c2] text-black rounded-lg px-4 py-2 hover:bg-[#f5d2d2] transition-colors disabled:opacity-50"
+                  onClick={() => favoriteDirectoryInputRef.current?.click()}
+                  className="w-full flex items-center justify-center space-x-2 bg-[#f4c2c2] text-black rounded-lg px-4 py-2 hover:bg-[#f5d2d2] transition-colors"
                 >
-                  {isExporting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                      <span>Exporting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download size={16} />
-                      <span>Export Project</span>
-                    </>
-                  )}
+                  <Heart size={16} />
+                  <span>Set Favorite Directory</span>
                 </button>
               </div>
 
               {/* Import Section */}
-              <div>
+              <div className="border-b border-gray-700 pb-4">
                 <h4 className="text-white font-medium mb-2">Import Project</h4>
                 <p className="text-gray-400 text-sm mb-3">
-                  Load a previously exported project file to restore all your data
+                  Load a project directory to restore all your data and set up auto-sync
                 </p>
                 {isImporting ? (
                   <div className="w-full bg-[#2d2d2d] rounded-lg p-4">
@@ -3005,23 +3091,45 @@ Keep this folder safe as a backup of your work!
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => projectFolderInputRef.current?.click()}
-                      className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
-                    >
-                      <Upload size={16} />
-                      <span>Import Single File</span>
-                    </button>
-                    <button
-                      onClick={() => projectDirectoryInputRef.current?.click()}
-                      className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
-                    >
-                      <FolderOpen size={16} />
-                      <span>Import Directory</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => projectDirectoryInputRef.current?.click()}
+                    className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
+                  >
+                    <FolderOpen size={16} />
+                    <span>Import Project Directory</span>
+                  </button>
                 )}
+              </div>
+
+              {/* Export Section */}
+              <div>
+                <h4 className="text-white font-medium mb-2">Export Project</h4>
+                <p className="text-gray-400 text-sm mb-3">
+                  Download current project as backup files
+                </p>
+                <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
+                  <div className="text-xs text-gray-400">Current Project:</div>
+                  <div className="text-white text-sm">
+                    {Object.keys(boards).length} boards • {tags.length} tags • {Object.values(boards).reduce((sum, board) => sum + board.items.length, 0)} items
+                  </div>
+                </div>
+                <button
+                  onClick={exportProject}
+                  disabled={isExporting}
+                  className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors disabled:opacity-50 border border-[#f4c2c2]"
+                >
+                  {isExporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-[#f4c2c2] border-t-transparent rounded-full animate-spin" />
+                      <span>Exporting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={16} />
+                      <span>Export Project</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -3118,6 +3226,14 @@ Keep this folder safe as a backup of your work!
         webkitdirectory="true"
         multiple
         onChange={handleDirectorySelect}
+        className="hidden"
+      />
+      <input
+        ref={favoriteDirectoryInputRef}
+        type="file"
+        webkitdirectory="true"
+        multiple
+        onChange={handleFavoriteDirectorySelect}
         className="hidden"
       />
     </div>
