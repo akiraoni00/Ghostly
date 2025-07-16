@@ -79,6 +79,12 @@ const MilanoteClone = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState('');
+  const [projectDirectory, setProjectDirectory] = useState(() => {
+    return localStorage.getItem('ghostly-projectDirectory') || '';
+  });
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
+    return localStorage.getItem('ghostly-autoSaveEnabled') === 'true';
+  });
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerTag, setColorPickerTag] = useState(null);
   const [showTagNameInput, setShowTagNameInput] = useState(false);
@@ -90,6 +96,7 @@ const MilanoteClone = () => {
   const textFileInputRef = useRef(null);
   const audioFileInputRef = useRef(null);
   const projectFolderInputRef = useRef(null);
+  const projectDirectoryInputRef = useRef(null);
   const [selectedBoardForImage, setSelectedBoardForImage] = useState(null);
   const [draggingEditor, setDraggingEditor] = useState(null);
   const [editorDragOffset, setEditorDragOffset] = useState({ x: 0, y: 0 });
@@ -104,7 +111,7 @@ const MilanoteClone = () => {
   }, [boards, history, historyIndex]);
 
   // Export all data to downloadable files
-  const exportProject = async () => {
+  const exportProject = async (isAutoSave = false) => {
     setIsExporting(true);
     try {
       // Create a comprehensive data structure with ALL application state
@@ -164,7 +171,8 @@ const MilanoteClone = () => {
             sum + board.items.filter(item => item.type === 'textFile').length, 0),
           totalConnections: Object.values(boards).reduce((sum, board) => 
             sum + board.items.filter(item => item.type === 'line').length, 0),
-          exportedAt: new Date().toLocaleString()
+          exportedAt: new Date().toLocaleString(),
+          isAutoSave
         }
       };
 
@@ -254,15 +262,20 @@ This folder contains a complete backup of your Ghostly note-taking project.
 ## How to restore:
 1. Open Ghostly application
 2. Click the folder icon in the top navigation
-3. Select "Import Project"
-4. Choose the project-data.json file
+3. Select "Import Directory" 
+4. Choose this entire folder
 5. All your boards, notes, tags, and settings will be restored
+
+## Auto-Save Setup:
+After importing, this directory will be automatically set up for auto-save.
+Your changes will be saved to this folder every minute.
 
 ## Export Details:
 - Exported on: ${new Date().toLocaleString()}
 - Total boards: ${Object.keys(boards).length}
 - Total tags: ${tags.length}
 - Version: 1.0.0
+- Auto-save: ${isAutoSave ? 'Yes' : 'Manual Export'}
 
 Keep this folder safe as a backup of your work!
 `;
@@ -278,12 +291,25 @@ Keep this folder safe as a backup of your work!
       document.body.removeChild(readmeLink);
       URL.revokeObjectURL(readmeUrl);
 
+      // If this is a manual export, suggest setting up auto-save
+      if (!isAutoSave && !projectDirectory) {
+        setTimeout(() => {
+          if (confirm('Export complete!\n\nWould you like to enable auto-save for this project?\n\nThis will automatically save changes every minute when you make modifications.')) {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const suggestedName = `ghostly-project-${timestamp}`;
+            setProjectDirectoryPath(suggestedName);
+          }
+        }, 1000);
+      }
+
     } catch (error) {
       console.error('Export failed:', error);
       alert('Export failed. Please try again.');
     } finally {
       setIsExporting(false);
-      setShowSaveLoadModal(false);
+      if (!isAutoSave) {
+        setShowSaveLoadModal(false);
+      }
     }
   };
 
@@ -390,28 +416,114 @@ Keep this folder safe as a backup of your work!
   };
 
   const handleProjectFileSelect = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      importProject(file);
+    const files = Array.from(event.target.files);
+    if (files.length === 1) {
+      // Single file import
+      importProject(files[0]);
+    } else if (files.length > 1) {
+      // Multiple files from a directory
+      importProjectDirectory(files);
     }
   };
 
-  // Function to recover from auto-saved data
-  const recoverFromAutoSave = () => {
-    try {
-      const autoSaveData = localStorage.getItem('ghostly-autosave');
-      if (autoSaveData) {
-        const data = JSON.parse(autoSaveData);
-        if (confirm(`Auto-saved data found from ${data.metadata?.lastAutoSave}.\n\nRecover:\n- ${data.metadata?.totalBoards || 0} boards\n- ${data.metadata?.totalTags || 0} tags\n- ${data.metadata?.totalItems || 0} items\n\nDo you want to recover this data?`)) {
-          importProject({ text: () => Promise.resolve(JSON.stringify(data)) });
-        }
-      } else {
-        alert('No auto-saved data found.');
-      }
-    } catch (error) {
-      console.error('Failed to recover auto-save:', error);
-      alert('Failed to recover auto-saved data.');
+  const handleDirectorySelect = (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length > 0) {
+      importProjectDirectory(files);
     }
+  };
+
+  // Import from multiple files in a directory
+  const importProjectDirectory = async (files) => {
+    setIsImporting(true);
+    setImportProgress('Processing directory...');
+    
+    try {
+      let projectData = null;
+      const fileMap = {};
+      
+      // Process all files and create a file map
+      for (const file of files) {
+        fileMap[file.name] = file;
+      }
+      
+      setImportProgress('Reading project data...');
+      
+      // Look for the main project file
+      const mainProjectFile = fileMap['project-data.json'] || fileMap['ghostly-project.json'];
+      if (mainProjectFile) {
+        const text = await mainProjectFile.text();
+        projectData = JSON.parse(text);
+      } else {
+        throw new Error('No main project file found. Looking for project-data.json or ghostly-project.json');
+      }
+      
+      setImportProgress('Validating project structure...');
+      
+      if (!projectData.boards || !projectData.version) {
+        throw new Error('Invalid project file format');
+      }
+      
+      // Import additional data files if they exist
+      if (fileMap['boards-backup.json']) {
+        setImportProgress('Loading boards backup...');
+        const boardsText = await fileMap['boards-backup.json'].text();
+        const boardsData = JSON.parse(boardsText);
+        projectData.boards = { ...projectData.boards, ...boardsData };
+      }
+      
+      if (fileMap['tags-backup.json']) {
+        setImportProgress('Loading tags backup...');
+        const tagsText = await fileMap['tags-backup.json'].text();
+        const tagsData = JSON.parse(tagsText);
+        projectData.tags = tagsData;
+      }
+      
+      if (fileMap['settings-backup.json']) {
+        setImportProgress('Loading settings backup...');
+        const settingsText = await fileMap['settings-backup.json'].text();
+        const settingsData = JSON.parse(settingsText);
+        projectData.settings = { ...projectData.settings, ...settingsData };
+      }
+      
+      if (fileMap['text-files.json']) {
+        setImportProgress('Loading text files...');
+        const textFilesText = await fileMap['text-files.json'].text();
+        const textFilesData = JSON.parse(textFilesText);
+        
+        // Merge text file content back into boards
+        Object.values(projectData.boards).forEach(board => {
+          board.items.forEach(item => {
+            if (item.type === 'textFile' && textFilesData[item.id]) {
+              item.content = textFilesData[item.id].content;
+              item.tags = textFilesData[item.id].tags || item.tags;
+            }
+          });
+        });
+      }
+      
+      // Import the project data
+      await importProject({ text: () => Promise.resolve(JSON.stringify(projectData)) });
+      
+      // Set up auto-save for this directory
+      setImportProgress('Setting up auto-save...');
+      const directoryName = files[0].webkitRelativePath.split('/')[0];
+      setProjectDirectoryPath(directoryName);
+      
+    } catch (error) {
+      console.error('Directory import failed:', error);
+      setIsImporting(false);
+      setImportProgress('');
+      alert(`Directory import failed: ${error.message}`);
+    }
+  };
+
+  // Set project directory for auto-save
+  const setProjectDirectoryPath = (directoryName) => {
+    setProjectDirectory(directoryName);
+    localStorage.setItem('ghostly-projectDirectory', directoryName);
+    setAutoSaveEnabled(true);
+    localStorage.setItem('ghostly-autoSaveEnabled', 'true');
   };
 
   // Add new tag
@@ -552,40 +664,21 @@ Keep this folder safe as a backup of your work!
     }
   }, [openEditors]);
 
-  // Auto-save complete project state periodically
+  // Auto-save to project directory when enabled
   useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
+    if (!autoSaveEnabled || !projectDirectory) return;
+    
+    const autoSaveInterval = setInterval(async () => {
       try {
-        const autoSaveData = {
-          version: "1.0.0",
-          timestamp: new Date().toISOString(),
-          boards,
-          tags,
-          openEditors,
-          settings: {
-            zoom,
-            pan,
-            currentBoard,
-            boardHierarchy,
-            nodeGraphSettings,
-            showNodeGraph,
-            selectedTool
-          },
-          metadata: {
-            totalBoards: Object.keys(boards).length,
-            totalTags: tags.length,
-            totalItems: Object.values(boards).reduce((sum, board) => sum + board.items.length, 0),
-            lastAutoSave: new Date().toLocaleString()
-          }
-        };
-        localStorage.setItem('ghostly-autosave', JSON.stringify(autoSaveData));
+        // Trigger auto-save export
+        await exportProject(true);
       } catch (error) {
-        console.warn('Auto-save failed:', error);
+        console.warn('Auto-save to directory failed:', error);
       }
-    }, 30000); // Auto-save every 30 seconds
+    }, 60000); // Auto-save every 60 seconds when directory is set
 
     return () => clearInterval(autoSaveInterval);
-  }, [boards, tags, openEditors, zoom, pan, currentBoard, boardHierarchy, nodeGraphSettings, showNodeGraph, selectedTool]);
+  }, [boards, tags, openEditors, zoom, pan, currentBoard, boardHierarchy, nodeGraphSettings, showNodeGraph, selectedTool, autoSaveEnabled, projectDirectory]);
 
   // Create new item based on selected tool
   const createItem = useCallback((x, y, type = selectedTool) => {
@@ -1350,10 +1443,21 @@ Keep this folder safe as a backup of your work!
           {/* Save/Load Project */}
           <button
             onClick={() => setShowSaveLoadModal(true)}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
-            title="Save/Load Project"
+            className={`p-2 transition-colors relative ${
+              autoSaveEnabled && projectDirectory
+                ? 'text-green-400 hover:text-green-300'
+                : 'text-gray-400 hover:text-white'
+            }`}
+            title={
+              autoSaveEnabled && projectDirectory
+                ? `Auto-save enabled: ${projectDirectory}`
+                : 'Save/Load Project'
+            }
           >
             <FolderOpen size={16} />
+            {autoSaveEnabled && projectDirectory && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            )}
           </button>
           
           {/* Node Graph Toggle */}
@@ -2907,18 +3011,55 @@ Keep this folder safe as a backup of your work!
                       className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
                     >
                       <Upload size={16} />
-                      <span>Import Project</span>
+                      <span>Import Single File</span>
                     </button>
                     <button
-                      onClick={recoverFromAutoSave}
-                      className="w-full flex items-center justify-center space-x-2 bg-[#1a1a1a] text-gray-400 rounded-lg px-4 py-2 hover:bg-[#2d2d2d] hover:text-white transition-colors border border-gray-600"
+                      onClick={() => projectDirectoryInputRef.current?.click()}
+                      className="w-full flex items-center justify-center space-x-2 bg-[#2d2d2d] text-[#f4c2c2] rounded-lg px-4 py-2 hover:bg-[#3d3d3d] transition-colors border border-[#f4c2c2]"
                     >
-                      <Save size={16} />
-                      <span>Recover Auto-Save</span>
+                      <FolderOpen size={16} />
+                      <span>Import Directory</span>
                     </button>
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Auto-Save Settings */}
+            <div className="border-t border-gray-700 pt-4">
+              <h4 className="text-white font-medium mb-2">Auto-Save Directory</h4>
+              <p className="text-gray-400 text-sm mb-3">
+                Set a project directory to automatically save changes every minute
+              </p>
+              {projectDirectory ? (
+                <div className="bg-[#2d2d2d] rounded-lg p-3 mb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-gray-400">Current Directory:</div>
+                      <div className="text-white text-sm">{projectDirectory}</div>
+                      <div className="text-xs text-gray-500">
+                        Auto-save: {autoSaveEnabled ? 'Enabled' : 'Disabled'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setProjectDirectory('');
+                        setAutoSaveEnabled(false);
+                        localStorage.removeItem('ghostly-projectDirectory');
+                        localStorage.removeItem('ghostly-autoSaveEnabled');
+                      }}
+                      className="text-gray-400 hover:text-white p-1"
+                      title="Clear directory"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-500 text-sm mb-3">
+                  No directory set. Export your project to set up auto-save.
+                </div>
+              )}
             </div>
 
             {/* Close Button */}
@@ -2969,6 +3110,14 @@ Keep this folder safe as a backup of your work!
         type="file"
         accept=".json"
         onChange={handleProjectFileSelect}
+        className="hidden"
+      />
+      <input
+        ref={projectDirectoryInputRef}
+        type="file"
+        webkitdirectory="true"
+        multiple
+        onChange={handleDirectorySelect}
         className="hidden"
       />
     </div>

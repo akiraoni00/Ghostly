@@ -127,11 +127,14 @@ Preferred communication style: Simple, everyday language.
 - **Tag Associations**: Built tag-based connection system for knowledge graph functionality
 - **Visual Enhancements**: Maintained consistent pink (#f4c2c2) theme throughout new features
 
-### Latest Addition: Local File Management System
-- **Project Export**: Comprehensive export functionality that saves all boards, notes, tags, settings, and connections to downloadable JSON files
-- **Project Import**: Complete import system that restores entire projects from exported files
-- **Local Backup**: All data stored locally in browser localStorage with option to backup to computer files
-- **File Management UI**: Clean modal interface for export/import operations with progress indicators
-- **Data Integrity**: Validates imported data structure and preserves all relationships between components
+### Latest Addition: Comprehensive Save/Load System (January 2025)
+- **Folder-Based Export**: Export creates multiple backup files (project-data.json, boards-backup.json, tags-backup.json, settings-backup.json, text-files.json, README.txt)
+- **Directory Import**: Import entire project directories with all files and configurations
+- **Auto-Save to Directory**: Set a project directory for automatic saves every 60 seconds
+- **Complete State Persistence**: Saves all boards, items, tags, settings, zoom, pan, node graph state, and editor positions
+- **Visual Auto-Save Indicator**: Green pulsing dot on folder icon when auto-save is enabled
+- **Local Data Permanence**: Full self-hosted solution for permanent local data storage
+- **Robust Data Export**: Comprehensive backup system with detailed README instructions
+- **Error Handling**: Enhanced import/export error messages and progress feedback
 
-The application is now a comprehensive knowledge management and visual organization tool, combining the best aspects of Obsidian's text-based note-taking with Milanote's visual canvas approach, plus robust local file management for data portability and backup.
+The application is now a fully self-contained, self-hosted knowledge management and visual organization tool that provides permanent local data storage without relying on cloud services. Users can maintain complete control over their data with automated backups to local directories.
