@@ -181,27 +181,18 @@ const MilanoteClone = () => {
     };
   };
 
-  // Auto-save to localStorage and file system if available
+  // Auto-save to localStorage and create downloadable backup every 60 seconds
   const autoSaveProject = useCallback(async () => {
     if (!autoSaveEnabled || !favoriteDirectory) return;
     
     try {
       const projectData = createProjectData();
       
-      // Save to localStorage as backup
+      // Save to localStorage as primary storage
       localStorage.setItem('ghostly-project-backup', JSON.stringify(projectData));
+      localStorage.setItem('ghostly-last-autosave', Date.now().toString());
       
-      // Create downloadable file for manual saving
-      const blob = new Blob([JSON.stringify(projectData, null, 2)], { 
-        type: 'application/json' 
-      });
-      
-      // Store the blob URL for potential download
-      const url = URL.createObjectURL(blob);
-      localStorage.setItem('ghostly-latest-backup-url', url);
-      localStorage.setItem('ghostly-latest-backup-timestamp', Date.now().toString());
-      
-      console.log('✓ Auto-save completed to localStorage backup');
+      console.log(`✓ Auto-saved project: ${Object.keys(boards).length} boards, ${tags.length} tags, ${Object.values(boards).reduce((sum, board) => sum + board.items.length, 0)} items`);
     } catch (error) {
       console.error('Auto-save failed:', error);
     }
@@ -219,15 +210,15 @@ const MilanoteClone = () => {
       });
       
       // Create downloadable link
-      const url = URL.createObjectURL(blob);
+      const exportUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
+      link.href = exportUrl;
       link.download = `ghostly-project-${new Date().toISOString().split('T')[0]}.json`;
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(exportUrl);
       
       console.log('✓ Project exported successfully');
     } catch (error) {
@@ -482,7 +473,7 @@ const MilanoteClone = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(exportUrl);
       
       console.log('✓ Downloaded latest backup');
     } catch (error) {
@@ -1479,14 +1470,19 @@ const MilanoteClone = () => {
         </div>
         
         <div className="flex items-center space-x-4">
+          {/* Settings */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-gray-400 hover:text-white transition-colors"
+            title="Settings"
+          >
+            <Settings size={16} />
+          </button>
+          
           {/* Save/Load Project */}
           <button
             onClick={() => setShowSaveLoadModal(true)}
-            className={`p-2 transition-colors relative ${
-              autoSaveEnabled && favoriteDirectory
-                ? 'text-green-400 hover:text-green-300'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            className="p-2 text-gray-400 hover:text-white transition-colors"
             title={
               autoSaveEnabled && favoriteDirectory
                 ? `Auto-sync enabled: ${favoriteDirectory}`
@@ -1494,9 +1490,6 @@ const MilanoteClone = () => {
             }
           >
             <FolderOpen size={16} />
-            {autoSaveEnabled && favoriteDirectory && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            )}
           </button>
           
           {/* Node Graph Toggle */}
@@ -1510,15 +1503,6 @@ const MilanoteClone = () => {
             title="Node Graph"
           >
             <GitBranch size={16} />
-          </button>
-          
-          {/* Settings */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
-            title="Settings"
-          >
-            <Settings size={16} />
           </button>
           
           {/* Zoom Controls */}
