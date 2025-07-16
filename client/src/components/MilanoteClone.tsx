@@ -580,6 +580,14 @@ const MilanoteClone = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo]);
 
+  // Clear rectangle selection when tool changes
+  useEffect(() => {
+    if (selectedTool !== 'rectangle-select') {
+      setRectangleSelection(null);
+      setIsRectangleSelecting(false);
+    }
+  }, [selectedTool]);
+
   // Initialize history
   useEffect(() => {
     if (history.length === 0) {
@@ -937,35 +945,39 @@ const MilanoteClone = () => {
       const canvasEndX = (endX - pan.x) / zoom;
       const canvasEndY = (endY - pan.y) / zoom;
       
-      setRectangleSelection({
+      setRectangleSelection(prev => ({
+        ...prev,
         startX: canvasStartX,
         startY: canvasStartY,
         endX: canvasEndX,
         endY: canvasEndY
-      });
+      }));
     };
     
     const handleMouseUp = () => {
-      if (!rectangleSelection) return;
-      
-      const { startX, startY, endX, endY } = rectangleSelection;
-      const minX = Math.min(startX, endX);
-      const maxX = Math.max(startX, endX);
-      const minY = Math.min(startY, endY);
-      const maxY = Math.max(startY, endY);
-      
-      // Find items within selection rectangle
-      const selectedItemsInRect = boards[currentBoard].items.filter(item => {
-        const itemCenterX = item.x + (item.width || 0) / 2;
-        const itemCenterY = item.y + (item.height || 0) / 2;
-        return itemCenterX >= minX && itemCenterX <= maxX && 
-               itemCenterY >= minY && itemCenterY <= maxY;
+      setRectangleSelection(prevSelection => {
+        if (!prevSelection) return null;
+        
+        const { startX, startY, endX, endY } = prevSelection;
+        const minX = Math.min(startX, endX);
+        const maxX = Math.max(startX, endX);
+        const minY = Math.min(startY, endY);
+        const maxY = Math.max(startY, endY);
+        
+        // Find items within selection rectangle
+        const selectedItemsInRect = boards[currentBoard].items.filter(item => {
+          const itemCenterX = item.x + (item.width || 0) / 2;
+          const itemCenterY = item.y + (item.height || 0) / 2;
+          return itemCenterX >= minX && itemCenterX <= maxX && 
+                 itemCenterY >= minY && itemCenterY <= maxY;
+        });
+        
+        setSelectedItems(selectedItemsInRect.map(item => item.id));
+        setIsRectangleSelecting(false);
+        setSelectedTool('select');
+        
+        return null; // Clear the rectangle selection
       });
-      
-      setSelectedItems(selectedItemsInRect.map(item => item.id));
-      setIsRectangleSelecting(false);
-      setRectangleSelection(null);
-      setSelectedTool('select');
       
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
