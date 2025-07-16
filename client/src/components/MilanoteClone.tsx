@@ -1055,7 +1055,8 @@ const MilanoteClone = () => {
       // Check if clicking on selected items group
       if (selectedItems.includes(item.id)) {
         // Start multi-item drag
-        setDraggedItems(boards[currentBoard].items.filter(item => selectedItems.includes(item.id)));
+        const selectedItemsData = boards[currentBoard].items.filter(boardItem => selectedItems.includes(boardItem.id));
+        setDraggedItems(selectedItemsData);
         setMultiDragOffset({
           x: canvasX - item.x,
           y: canvasY - item.y
@@ -1114,13 +1115,17 @@ const MilanoteClone = () => {
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       
-      const canvasX = (x - pan.x) / zoom - multiDragOffset.x;
-      const canvasY = (y - pan.y) / zoom - multiDragOffset.y;
+      const canvasX = (x - pan.x) / zoom;
+      const canvasY = (y - pan.y) / zoom;
       
-      // Calculate offset for the reference item
+      // Calculate new position for the reference item
       const referenceItem = draggedItems[0];
-      const deltaX = canvasX - referenceItem.x;
-      const deltaY = canvasY - referenceItem.y;
+      const newRefX = canvasX - multiDragOffset.x;
+      const newRefY = canvasY - multiDragOffset.y;
+      
+      // Calculate delta movement from reference item's original position
+      const deltaX = newRefX - referenceItem.x;
+      const deltaY = newRefY - referenceItem.y;
       
       setBoards(prev => ({
         ...prev,
@@ -1128,7 +1133,8 @@ const MilanoteClone = () => {
           ...prev[currentBoard],
           items: prev[currentBoard].items.map(item => {
             if (selectedItems.includes(item.id)) {
-              return { ...item, x: item.x + deltaX, y: item.y + deltaY };
+              const originalItem = draggedItems.find(di => di.id === item.id);
+              return { ...item, x: originalItem.x + deltaX, y: originalItem.y + deltaY };
             }
             return item;
           })
@@ -2289,7 +2295,7 @@ const MilanoteClone = () => {
                 return (
                   <div
                     key={`selection-${itemId}`}
-                    className="absolute pointer-events-none border-2 border-[#f4c2c2] border-dashed"
+                    className="absolute pointer-events-none border-2 border-[#f4c2c2] rounded-lg"
                     style={{
                       left: item.x - 2,
                       top: item.y - 2,
@@ -2511,6 +2517,7 @@ const MilanoteClone = () => {
                     const x = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
                     const y = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
                     
+                    // Update position immediately without batching for smooth dragging
                     setNodePositions(prev => {
                       const newMap = new Map(prev);
                       newMap.set(`${draggedNode.type}-${draggedNode.id}`, { x, y });
@@ -2553,7 +2560,7 @@ const MilanoteClone = () => {
                     transformOrigin: '0 0'
                   }}
                 >
-                  <svg className="w-full h-full" style={{ minWidth: '1000px', minHeight: '600px' }}>
+                  <svg className="w-full h-full" style={{ minWidth: '1000px', minHeight: '800px' }}>
                     {(() => {
                       const textFiles = Object.values(boards).flatMap(board => 
                         board.items?.filter(item => item.type === 'textfile') || []
@@ -3519,6 +3526,27 @@ const MilanoteClone = () => {
                 }}
               />
             ))}
+          </div>
+          <div className="mt-3 mb-3">
+            <label className="block text-gray-300 text-sm mb-2">Custom Color</label>
+            <input
+              type="color"
+              className="w-full h-8 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors cursor-pointer"
+              onChange={(e) => {
+                setBoards(prev => ({
+                  ...prev,
+                  [currentBoard]: {
+                    ...prev[currentBoard],
+                    items: prev[currentBoard].items.map(item =>
+                      item.id === noteColorPicker.itemId 
+                        ? { ...item, backgroundColor: e.target.value }
+                        : item
+                    )
+                  }
+                }));
+                setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+              }}
+            />
           </div>
           <div className="mt-3 flex justify-end">
             <button
