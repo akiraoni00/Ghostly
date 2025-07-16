@@ -1086,9 +1086,11 @@ const MilanoteClone = ({ ...props }) => {
       
       // Hand tool - switch to select when touching an element
       if (selectedTool === 'hand') {
-        setSelectedTool('select');
-        
-        // Now handle as select tool
+        // Hand tool - no automatic switching, just pan the canvas
+        return;
+      }
+      
+      if (selectedTool === 'select') {
         if (selectedItems.includes(item.id)) {
           const selectedItemsData = boards[currentBoard].items.filter(boardItem => selectedItems.includes(boardItem.id));
           const offsets = selectedItemsData.map(selectedItem => ({
@@ -1109,18 +1111,6 @@ const MilanoteClone = ({ ...props }) => {
       
       // Select tool - handle item selection and dragging
       if (selectedTool === 'select') {
-        // Check for color picker eligible items (everything except boards, images, and text files)
-        const colorPickerEligible = ['note', 'line', 'link', 'todo', 'tag'];
-        if (colorPickerEligible.includes(item.type)) {
-          // Show color picker on left click
-          setColorPicker({
-            show: true,
-            x: e.clientX,
-            y: e.clientY,
-            itemId: item.id
-          });
-          return;
-        }
         
         // Check if clicking on selected items group
         if (selectedItems.includes(item.id)) {
@@ -1185,13 +1175,11 @@ const MilanoteClone = ({ ...props }) => {
         return;
       }
       
-      // For other tools, create items and return to hand tool
+      // For other tools, create items but don't auto-switch tools
       if (selectedTool !== 'select' && selectedTool !== 'hand') {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (rect) {
           createItem(e.clientX - rect.left, e.clientY - rect.top);
-          // Auto-return to hand tool after creating items
-          setSelectedTool('hand');
         }
         return;
       }
@@ -1354,8 +1342,7 @@ const MilanoteClone = ({ ...props }) => {
       setSelectionOffsets([]);
       saveToHistory();
       
-      // Auto-return to hand tool after dragging
-      setSelectedTool('hand');
+      // Don't auto-switch tools after dragging
     }
     if (isPanning) {
       setIsPanning(false);
@@ -2609,7 +2596,7 @@ const MilanoteClone = ({ ...props }) => {
               <span>Set Image</span>
             </button>
           )}
-          {contextMenu.item.type === 'note' && (
+          {(['note', 'link', 'todo', 'tag', 'line'].includes(contextMenu.item.type)) && (
             <button
               onClick={() => {
                 setNoteColorPicker({
@@ -2622,7 +2609,7 @@ const MilanoteClone = ({ ...props }) => {
               }}
               className="w-full text-left px-4 py-2 text-gray-300 hover:bg-[#2d2d2d] hover:text-white transition-colors flex items-center space-x-2"
             >
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: contextMenu.item.backgroundColor }} />
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: contextMenu.item.backgroundColor || contextMenu.item.color || '#f4c2c2' }} />
               <span>Change Color</span>
             </button>
           )}
@@ -3702,7 +3689,7 @@ const MilanoteClone = ({ ...props }) => {
           style={{ left: noteColorPicker.x, top: noteColorPicker.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <h4 className="text-white font-medium mb-3">Note Color</h4>
+          <h4 className="text-white font-medium mb-3">Change Color</h4>
           <div className="grid grid-cols-6 gap-2">
             {[
               '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
@@ -3718,11 +3705,17 @@ const MilanoteClone = ({ ...props }) => {
                     ...prev,
                     [currentBoard]: {
                       ...prev[currentBoard],
-                      items: prev[currentBoard].items.map(item =>
-                        item.id === noteColorPicker.itemId 
-                          ? { ...item, backgroundColor: color }
-                          : item
-                      )
+                      items: prev[currentBoard].items.map(item => {
+                        if (item.id === noteColorPicker.itemId) {
+                          // Use backgroundColor for notes, color for other items
+                          if (item.type === 'note') {
+                            return { ...item, backgroundColor: color };
+                          } else {
+                            return { ...item, color: color };
+                          }
+                        }
+                        return item;
+                      })
                     }
                   }));
                   setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
@@ -3740,11 +3733,17 @@ const MilanoteClone = ({ ...props }) => {
                   ...prev,
                   [currentBoard]: {
                     ...prev[currentBoard],
-                    items: prev[currentBoard].items.map(item =>
-                      item.id === noteColorPicker.itemId 
-                        ? { ...item, backgroundColor: e.target.value }
-                        : item
-                    )
+                    items: prev[currentBoard].items.map(item => {
+                      if (item.id === noteColorPicker.itemId) {
+                        // Use backgroundColor for notes, color for other items
+                        if (item.type === 'note') {
+                          return { ...item, backgroundColor: e.target.value };
+                        } else {
+                          return { ...item, color: e.target.value };
+                        }
+                      }
+                      return item;
+                    })
                   }
                 }));
                 setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
