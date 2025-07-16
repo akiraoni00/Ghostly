@@ -1,5 +1,48 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move, Network, MapPin } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move, Network, MapPin, GitBranch } from 'lucide-react';
+
+// Custom Sharp Hand Icon Component
+const SharpHandIcon = ({ size = 16, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M6 11V9a3 3 0 0 1 3-3h0a3 3 0 0 1 3 3v2" />
+    <path d="M12 11V7a3 3 0 0 1 3-3h0a3 3 0 0 1 3 3v4" />
+    <path d="M18 11v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6" />
+    <path d="M6 11h12" />
+    <path d="M8 15h4" />
+  </svg>
+);
+
+// Custom Node Graph Icon Component
+const NodeGraphIcon = ({ size = 16, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <circle cx="12" cy="6" r="3" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="18" r="3" />
+    <path d="M12 9v3" />
+    <path d="M12 12l-3 3" />
+    <path d="M12 12l3 3" />
+  </svg>
+);
 
 const MilanoteClone = () => {
   // Load initial state from localStorage or use default
@@ -1762,12 +1805,7 @@ const MilanoteClone = () => {
 
   // Custom Hand Icon Component
   const HandIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 12V6.5c0-1.1.9-2 2-2s2 .9 2 2V12"/>
-      <path d="M12 12V4.5c0-1.1.9-2 2-2s2 .9 2 2V12"/>
-      <path d="M16 12V6.5c0-1.1.9-2 2-2s2 .9 2 2V12"/>
-      <path d="M6 12c0-1.1.9-2 2-2h12c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2H8c-1.1 0-2-.9-2-2V12z"/>
-    </svg>
+    <SharpHandIcon size={size} />
   );
 
   // Tool components
@@ -1868,19 +1906,9 @@ const MilanoteClone = () => {
           <button
             onClick={() => setShowNodeManager(true)}
             className="p-3 text-gray-400 hover:text-white transition-colors"
-            title="Node Manager"
+            title="Node Graph"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="5" r="2"/>
-              <circle cx="12" cy="12" r="2"/>
-              <circle cx="12" cy="19" r="2"/>
-              <circle cx="5" cy="12" r="2"/>
-              <circle cx="19" cy="12" r="2"/>
-              <path d="M12 7v3"/>
-              <path d="M12 14v3"/>
-              <path d="M7 12h3"/>
-              <path d="M14 12h3"/>
-            </svg>
+            <NodeGraphIcon size={20} />
           </button>
           
           {/* Zoom Controls */}
@@ -2595,13 +2623,10 @@ const MilanoteClone = () => {
                 </svg>
               )}
               
-              {/* Selected Items Outline */}
+              {/* Selected Items Outline - Only for non-board items */}
               {selectedItems.map(itemId => {
                 const item = boards[currentBoard].items.find(i => i.id === itemId);
-                if (!item) return null;
-                
-                // For boards, only border the image part (first 48*4 = 192px height)
-                const borderHeight = item.type === 'board' ? 192 : item.height + 4;
+                if (!item || item.type === 'board') return null;
                 
                 return (
                   <div
@@ -2611,7 +2636,7 @@ const MilanoteClone = () => {
                       left: item.x - 2,
                       top: item.y - 2,
                       width: item.width + 4,
-                      height: borderHeight
+                      height: item.height + 4
                     }}
                   />
                 );
@@ -3557,11 +3582,11 @@ const MilanoteClone = () => {
               />
             ))}
           </div>
-          <div className="mt-3 mb-3">
-            <label className="block text-gray-300 text-sm mb-2">Custom Color</label>
+          <div className="mt-4">
+            <label className="text-white text-sm">Custom Color:</label>
             <input
               type="color"
-              className="w-full h-8 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors cursor-pointer"
+              className="w-full h-8 mt-1 rounded border border-gray-600 bg-[#2d2d2d]"
               onChange={(e) => {
                 setBoards(prev => ({
                   ...prev,
@@ -3580,7 +3605,13 @@ const MilanoteClone = () => {
                     })
                   }
                 }));
-                setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+                // Don't close immediately, let user continue adjusting
+              }}
+              onBlur={() => {
+                // Close when user finishes with the color picker
+                setTimeout(() => {
+                  setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+                }, 100);
               }}
             />
           </div>
