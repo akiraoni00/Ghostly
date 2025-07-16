@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, Ghost, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, GitBranch, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Hand, Move } from 'lucide-react';
 
-const MilanoteClone = ({ ...props }) => {
+const MilanoteClone = () => {
   // Load initial state from localStorage or use default
   const [boards, setBoards] = useState(() => {
     const savedBoards = localStorage.getItem('ghostly-boards');
@@ -72,6 +72,9 @@ const MilanoteClone = ({ ...props }) => {
   const [nodeGraphPan, setNodeGraphPan] = useState({ x: 0, y: 0 });
   const [isNodeGraphPanning, setIsNodeGraphPanning] = useState(false);
   const [nodeGraphPanStart, setNodeGraphPanStart] = useState({ x: 0, y: 0 });
+  const [draggedNodeId, setDraggedNodeId] = useState(null);
+  const [draggedNodeType, setDraggedNodeType] = useState(null);
+  const [draggedNodeOffset, setDraggedNodeOffset] = useState({ x: 0, y: 0 });
   const [showTagManager, setShowTagManager] = useState(false);
   const [rectangleSelection, setRectangleSelection] = useState(null);
   const [isRectangleSelecting, setIsRectangleSelecting] = useState(false);
@@ -87,6 +90,8 @@ const MilanoteClone = ({ ...props }) => {
   const [colorPicker, setColorPicker] = useState({ show: false, x: 0, y: 0, itemId: null });
   const [linePreview, setLinePreview] = useState(null);
   const [editingLine, setEditingLine] = useState(null);
+  const [lineStartPoint, setLineStartPoint] = useState(null);
+  const [isDrawingLine, setIsDrawingLine] = useState(false);
   const [pendingTextFileImport, setPendingTextFileImport] = useState(null);
   const [showTagSelectionModal, setShowTagSelectionModal] = useState(false);
   const [showSaveLoadModal, setShowSaveLoadModal] = useState(false);
@@ -110,6 +115,7 @@ const MilanoteClone = ({ ...props }) => {
   const [shortcuts, setShortcuts] = useState(() => {
     const saved = localStorage.getItem('ghostly-shortcuts');
     return saved ? JSON.parse(saved) : {
+      hand: 'h',
       select: 'v',
       rectangleSelect: 'r',
       board: 'b',
@@ -413,6 +419,9 @@ const MilanoteClone = ({ ...props }) => {
       const key = e.key.toLowerCase();
       
       switch (key) {
+        case shortcuts.hand:
+          setSelectedTool('hand');
+          break;
         case shortcuts.select:
           setSelectedTool('select');
           break;
@@ -828,6 +837,7 @@ const MilanoteClone = ({ ...props }) => {
           width: 200,
           height: 180,
           title: 'Project Tasks',
+          color: '#f4c2c2',
           tasks: [
             { id: 1, text: 'Task 1', completed: false },
             { id: 2, text: 'Task 2', completed: false }
@@ -850,7 +860,7 @@ const MilanoteClone = ({ ...props }) => {
     saveToHistory();
   }, [selectedTool, currentBoard, saveToHistory, zoom, pan]);
 
-  // Handle line drawing with preview
+  // Enhanced line drawing with smooth preview
   const handleLineDrawing = useCallback((e) => {
     if (selectedTool !== 'line') return;
     
@@ -863,6 +873,9 @@ const MilanoteClone = ({ ...props }) => {
     const canvasStartX = (startX - pan.x) / zoom;
     const canvasStartY = (startY - pan.y) / zoom;
     
+    setLineStartPoint({ x: canvasStartX, y: canvasStartY });
+    setIsDrawingLine(true);
+    
     const handleMouseMove = (moveEvent) => {
       const endX = moveEvent.clientX - rect.left;
       const endY = moveEvent.clientY - rect.top;
@@ -870,14 +883,15 @@ const MilanoteClone = ({ ...props }) => {
       const canvasEndX = (endX - pan.x) / zoom;
       const canvasEndY = (endY - pan.y) / zoom;
       
-      // Show preview line
+      // Show smooth preview line
       setLinePreview({
         startX: canvasStartX,
         startY: canvasStartY,
         endX: canvasEndX,
         endY: canvasEndY,
         color: '#f4c2c2',
-        strokeWidth: 2
+        strokeWidth: 2,
+        isDash: true
       });
     };
     
@@ -888,32 +902,39 @@ const MilanoteClone = ({ ...props }) => {
       const canvasEndX = (endX - pan.x) / zoom;
       const canvasEndY = (endY - pan.y) / zoom;
       
-      const newLine = {
-        id: `line_${Date.now()}`,
-        type: 'line',
-        x: Math.min(canvasStartX, canvasEndX),
-        y: Math.min(canvasStartY, canvasEndY),
-        width: Math.abs(canvasEndX - canvasStartX),
-        height: Math.abs(canvasEndY - canvasStartY),
-        startX: canvasStartX,
-        startY: canvasStartY,
-        endX: canvasEndX,
-        endY: canvasEndY,
-        color: '#f4c2c2',
-        strokeWidth: 2
-      };
+      // Only create line if there's meaningful length
+      const length = Math.sqrt(Math.pow(canvasEndX - canvasStartX, 2) + Math.pow(canvasEndY - canvasStartY, 2));
+      if (length > 5) {
+        const newLine = {
+          id: `line_${Date.now()}`,
+          type: 'line',
+          x: Math.min(canvasStartX, canvasEndX) - 10,
+          y: Math.min(canvasStartY, canvasEndY) - 10,
+          width: Math.abs(canvasEndX - canvasStartX) + 20,
+          height: Math.abs(canvasEndY - canvasStartY) + 20,
+          startX: canvasStartX,
+          startY: canvasStartY,
+          endX: canvasEndX,
+          endY: canvasEndY,
+          color: '#f4c2c2',
+          strokeWidth: 2,
+          rotation: 0
+        };
+        
+        setBoards(prev => ({
+          ...prev,
+          [currentBoard]: {
+            ...prev[currentBoard],
+            items: [...prev[currentBoard].items, newLine]
+          }
+        }));
+        
+        saveToHistory();
+      }
       
-      setBoards(prev => ({
-        ...prev,
-        [currentBoard]: {
-          ...prev[currentBoard],
-          items: [...prev[currentBoard].items, newLine]
-        }
-      }));
-      
-      setSelectedTool('select');
       setLinePreview(null);
-      saveToHistory();
+      setLineStartPoint(null);
+      setIsDrawingLine(false);
       
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
@@ -1800,7 +1821,7 @@ const MilanoteClone = ({ ...props }) => {
   const currentBoardData = boards[currentBoard];
 
   return (
-    <div className="w-full h-screen bg-black text-white flex flex-col overflow-hidden" {...props}>
+    <div className="w-full h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 h-12 bg-[#1a1a1a] border-b border-gray-800 z-50 flex items-center justify-between px-4">
         <div className="flex items-center space-x-4">
@@ -2222,7 +2243,9 @@ const MilanoteClone = ({ ...props }) => {
                           left: 0,
                           top: 0,
                           width: item.width || 1,
-                          height: item.height || 1
+                          height: item.height || 1,
+                          transform: `rotate(${item.rotation || 0}deg)`,
+                          transformOrigin: 'center'
                         }}
                         width={item.width || 1}
                         height={item.height || 1}
@@ -2232,10 +2255,33 @@ const MilanoteClone = ({ ...props }) => {
                           y1={item.startY - item.y}
                           x2={item.endX - item.x}
                           y2={item.endY - item.y}
-                          stroke={item.color}
-                          strokeWidth={item.strokeWidth}
-                          strokeDasharray="5,5"
+                          stroke={item.color || '#f4c2c2'}
+                          strokeWidth={item.strokeWidth || 2}
+                          strokeLinecap="round"
                         />
+                        {/* Selection handles for lines */}
+                        {selectedItems.includes(item.id) && (
+                          <g>
+                            <circle
+                              cx={item.startX - item.x}
+                              cy={item.startY - item.y}
+                              r="6"
+                              fill="#f4c2c2"
+                              stroke="#fff"
+                              strokeWidth="2"
+                              className="cursor-move"
+                            />
+                            <circle
+                              cx={item.endX - item.x}
+                              cy={item.endY - item.y}
+                              r="6"
+                              fill="#f4c2c2"
+                              stroke="#fff"
+                              strokeWidth="2"
+                              className="cursor-move"
+                            />
+                          </g>
+                        )}
                       </svg>
                     )}
 
@@ -2348,7 +2394,10 @@ const MilanoteClone = ({ ...props }) => {
                     )}
 
                     {item.type === 'todo' && (
-                      <div className="w-full h-full bg-white rounded-lg shadow-xl border border-gray-300 cursor-pointer">
+                      <div 
+                        className="w-full h-full rounded-lg shadow-xl border border-gray-300 cursor-pointer"
+                        style={{ backgroundColor: item.color || '#f4c2c2' }}
+                      >
                         <div className="p-4">
                           {editingItem?.id === item.id ? (
                             <input
@@ -2531,22 +2580,24 @@ const MilanoteClone = ({ ...props }) => {
                 <svg
                   className="absolute pointer-events-none"
                   style={{
-                    left: Math.min(linePreview.startX, linePreview.endX),
-                    top: Math.min(linePreview.startY, linePreview.endY),
-                    width: Math.abs(linePreview.endX - linePreview.startX),
-                    height: Math.abs(linePreview.endY - linePreview.startY)
+                    left: 0,
+                    top: 0,
+                    width: '100%',
+                    height: '100%'
                   }}
-                  width={Math.abs(linePreview.endX - linePreview.startX)}
-                  height={Math.abs(linePreview.endY - linePreview.startY)}
+                  width="100%"
+                  height="100%"
                 >
                   <line
-                    x1={linePreview.startX - Math.min(linePreview.startX, linePreview.endX)}
-                    y1={linePreview.startY - Math.min(linePreview.startY, linePreview.endY)}
-                    x2={linePreview.endX - Math.min(linePreview.startX, linePreview.endX)}
-                    y2={linePreview.endY - Math.min(linePreview.startY, linePreview.endY)}
+                    x1={linePreview.startX}
+                    y1={linePreview.startY}
+                    x2={linePreview.endX}
+                    y2={linePreview.endY}
                     stroke={linePreview.color}
                     strokeWidth={linePreview.strokeWidth}
-                    strokeDasharray="5,5"
+                    strokeLinecap="round"
+                    strokeDasharray={linePreview.isDash ? "8,4" : "none"}
+                    opacity="0.8"
                   />
                 </svg>
               )}
@@ -2555,6 +2606,10 @@ const MilanoteClone = ({ ...props }) => {
               {selectedItems.map(itemId => {
                 const item = boards[currentBoard].items.find(i => i.id === itemId);
                 if (!item) return null;
+                
+                // For boards, only border the image part (first 48*4 = 192px height)
+                const borderHeight = item.type === 'board' ? 192 : item.height + 4;
+                
                 return (
                   <div
                     key={`selection-${itemId}`}
@@ -2563,7 +2618,7 @@ const MilanoteClone = ({ ...props }) => {
                       left: item.x - 2,
                       top: item.y - 2,
                       width: item.width + 4,
-                      height: item.height + 4
+                      height: borderHeight
                     }}
                   />
                 );
@@ -2763,34 +2818,20 @@ const MilanoteClone = ({ ...props }) => {
                   });
                 }}
                 onMouseMove={(e) => {
-                  if (draggedNode && !draggedNode.hasMoved) {
-                    const moved = Math.abs(e.clientX - draggedNode.startX) > 5 || Math.abs(e.clientY - draggedNode.startY) > 5;
-                    if (moved) {
-                      setDraggedNode(prev => ({ ...prev, hasMoved: true }));
-                      if (clickTimer) {
-                        clearTimeout(clickTimer);
-                        setClickTimer(null);
-                      }
-                      setIsDraggingNode(true);
-                    }
-                  }
-                  
-                  if (isDraggingNode && draggedNode) {
+                  if (draggedNodeId && draggedNodeType) {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
                     const y = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
                     
-                    // Direct DOM manipulation for immediate visual feedback
-                    const nodeKey = `${draggedNode.type}-${draggedNode.id}`;
-                    const nodeElement = document.querySelector(`[data-node-key="${nodeKey}"]`);
-                    if (nodeElement) {
-                      nodeElement.style.transform = `translate(${x}px, ${y}px)`;
-                    }
+                    const newPosition = {
+                      x: x - draggedNodeOffset.x,
+                      y: y - draggedNodeOffset.y
+                    };
                     
-                    // Update state for persistence - batched for performance
+                    // Smooth dragging like objects on blackboard
                     setNodePositions(prev => {
                       const newMap = new Map(prev);
-                      newMap.set(nodeKey, { x, y });
+                      newMap.set(draggedNodeId, newPosition);
                       return newMap;
                     });
                   } else if (isNodeGraphPanning) {
@@ -2801,20 +2842,32 @@ const MilanoteClone = ({ ...props }) => {
                   }
                 }}
                 onMouseUp={() => {
+                  if (draggedNodeId && draggedNodeType) {
+                    localStorage.setItem('ghostly-node-positions', JSON.stringify(Array.from(nodePositions.entries())));
+                  }
                   if (clickTimer) {
                     clearTimeout(clickTimer);
                     setClickTimer(null);
                   }
                   setIsNodeGraphPanning(false);
+                  setDraggedNodeId(null);
+                  setDraggedNodeType(null);
+                  setDraggedNodeOffset({ x: 0, y: 0 });
                   setIsDraggingNode(false);
                   setDraggedNode(null);
                 }}
                 onMouseLeave={() => {
+                  if (draggedNodeId && draggedNodeType) {
+                    localStorage.setItem('ghostly-node-positions', JSON.stringify(Array.from(nodePositions.entries())));
+                  }
                   if (clickTimer) {
                     clearTimeout(clickTimer);
                     setClickTimer(null);
                   }
                   setIsNodeGraphPanning(false);
+                  setDraggedNodeId(null);
+                  setDraggedNodeType(null);
+                  setDraggedNodeOffset({ x: 0, y: 0 });
                   setIsDraggingNode(false);
                   setDraggedNode(null);
                 }}
@@ -2921,15 +2974,15 @@ const MilanoteClone = ({ ...props }) => {
                                 }}
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
-                                  setDraggedNode({ 
-                                    type: 'tag', 
-                                    id: tag.id, 
-                                    startX: e.clientX, 
-                                    startY: e.clientY,
-                                    startTime: Date.now(),
-                                    hasMoved: false
-                                  });
-                                  setIsDraggingNode(true);
+                                  const rect = nodeGraphRef.current?.getBoundingClientRect();
+                                  if (rect) {
+                                    const nodeX = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
+                                    const nodeY = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
+                                    
+                                    setDraggedNodeId(`tag-${tag.id}`);
+                                    setDraggedNodeType('tag');
+                                    setDraggedNodeOffset({ x: nodeX - x, y: nodeY - y });
+                                  }
                                 }}
                               />
                               <text
@@ -2967,15 +3020,15 @@ const MilanoteClone = ({ ...props }) => {
                                   }}
                                   onMouseDown={(e) => {
                                     e.stopPropagation();
-                                    setDraggedNode({ 
-                                      type: 'file', 
-                                      id: file.id, 
-                                      startX: e.clientX, 
-                                      startY: e.clientY,
-                                      startTime: Date.now(),
-                                      hasMoved: false
-                                    });
-                                    setIsDraggingNode(true);
+                                    const rect = nodeGraphRef.current?.getBoundingClientRect();
+                                    if (rect) {
+                                      const nodeX = (e.clientX - rect.left - nodeGraphPan.x) / nodeGraphZoom;
+                                      const nodeY = (e.clientY - rect.top - nodeGraphPan.y) / nodeGraphZoom;
+                                      
+                                      setDraggedNodeId(`file-${file.id}`);
+                                      setDraggedNodeType('file');
+                                      setDraggedNodeOffset({ x: nodeX - x, y: nodeY - y });
+                                    }
                                   }}
                                   onDoubleClick={(e) => {
                                     e.stopPropagation();
