@@ -2520,7 +2520,7 @@ const MilanoteClone = () => {
                           editingItem?.id === item.id ? 'border-[#f4c2c2]' : 'border-gray-300'
                         }`}
                         style={{
-                          width: item.width || 200,
+                          width: Math.max(250, Math.min(600, (item.url?.length || 0) * 8 + 200)),
                           height: item.height || (getVideoEmbedUrl(item.url) ? 180 : 80),
                           backgroundColor: item.color || '#f8fafc',
                           borderColor: editingItem?.id === item.id ? '#f4c2c2' : (item.color ? item.color : '#e2e8f0')
@@ -2614,7 +2614,7 @@ const MilanoteClone = () => {
                             ) : (
                               <div 
                                 className="cursor-pointer"
-                                onClick={(e) => {
+                                onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   if (item.url) {
                                     window.open(item.url, '_blank');
@@ -2847,7 +2847,7 @@ const MilanoteClone = () => {
                                     <div className="w-1 h-3 bg-black" />
                                     <div className="w-1 h-3 bg-black" />
                                   </div> : 
-                                  <div className="w-0 h-0 border-l-[8px] border-l-black border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent ml-1" />
+                                  <div className="w-0 h-0 border-l-[10px] border-l-black border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent ml-1" />
                                 }
                               </button>
                               
@@ -3801,7 +3801,7 @@ const MilanoteClone = () => {
                           <div className="w-0.5 h-2 bg-black" />
                           <div className="w-0.5 h-2 bg-black" />
                         </div> : 
-                        <div className="w-0 h-0 border-l-[5px] border-l-black border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent ml-0.5" />
+                        <div className="w-0 h-0 border-l-[6px] border-l-black border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent ml-0.5" />
                       }
                     </button>
                     
