@@ -3001,7 +3001,8 @@ const MilanoteClone = () => {
                     key={index}
                     className="w-6 h-6 rounded border border-gray-600 hover:border-[#f4c2c2] transition-colors"
                     style={{ backgroundColor: color }}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (colorPickerTag) {
                         setTags(prev => prev.map(t => 
                           t.id === colorPickerTag.id ? { ...t, color } : t
@@ -3088,7 +3089,9 @@ const MilanoteClone = () => {
                       hsl(180, 100%, 50%), hsl(240, 100%, 50%), hsl(300, 100%, 50%), 
                       hsl(360, 100%, 50%))`
                   }}
+                  onClick={(e) => e.stopPropagation()}
                   onInput={(e) => {
+                    e.stopPropagation();
                     const hue = parseInt(e.target.value);
                     setColorPickerHue(hue);
                     const color = `hsl(${hue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)`;
@@ -3099,6 +3102,7 @@ const MilanoteClone = () => {
                     }
                   }}
                   onChange={(e) => {
+                    e.stopPropagation();
                     const hue = parseInt(e.target.value);
                     setColorPickerHue(hue);
                     const color = `hsl(${hue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)`;
@@ -3122,7 +3126,8 @@ const MilanoteClone = () => {
             
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowColorPicker(false);
                   setColorPickerTag(null);
                 }}
@@ -3582,7 +3587,8 @@ const MilanoteClone = () => {
                   key={index}
                   className="w-6 h-6 rounded border border-gray-600 hover:border-[#f4c2c2] transition-colors"
                   style={{ backgroundColor: color }}
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     changeItemColor(noteColorPicker.itemId, color);
                     setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
                   }}
@@ -3660,13 +3666,16 @@ const MilanoteClone = () => {
                     hsl(180, 100%, 50%), hsl(240, 100%, 50%), hsl(300, 100%, 50%), 
                     hsl(360, 100%, 50%))`
                 }}
+                onClick={(e) => e.stopPropagation()}
                 onInput={(e) => {
+                  e.stopPropagation();
                   const hue = parseInt(e.target.value);
                   setColorPickerHue(hue);
                   const color = `hsl(${hue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)`;
                   changeItemColor(noteColorPicker.itemId, color);
                 }}
                 onChange={(e) => {
+                  e.stopPropagation();
                   const hue = parseInt(e.target.value);
                   setColorPickerHue(hue);
                   const color = `hsl(${hue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)`;
@@ -3686,7 +3695,10 @@ const MilanoteClone = () => {
           
           <div className="flex justify-end gap-2">
             <button
-              onClick={() => setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null })}
+              onClick={(e) => {
+                e.stopPropagation();
+                setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+              }}
               className="px-3 py-1 text-gray-400 hover:text-white transition-colors text-sm"
             >
               Close
