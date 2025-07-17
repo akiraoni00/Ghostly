@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Move, Network, MapPin, GitBranch } from 'lucide-react';
 
-// Custom Sharp Hand Icon Component - Clean minimalist hand/drag icon
+// Custom Hand Icon Component - Standard hand/grab cursor icon
 const SharpHandIcon = ({ size = 16, className = "" }) => (
   <svg
     width={size}
@@ -14,9 +14,10 @@ const SharpHandIcon = ({ size = 16, className = "" }) => (
     strokeLinejoin="round"
     className={className}
   >
-    <path d="M9 12l2 2 4-4" />
-    <path d="m6 17 3-3 3 3" />
-    <path d="m6 7 3 3 3-3" />
+    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5" />
+    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6" />
+    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
+    <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L8 15" />
   </svg>
 );
 
@@ -2978,26 +2979,20 @@ const MilanoteClone = () => {
           }}
         >
           <div 
-            className="bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-4 w-[320px]"
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+            className="bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 w-[260px]"
+            onClick={(e) => e.stopPropagation()}
           >
-            <h4 className="text-white font-medium mb-3">Tag Color Picker</h4>
-            
-            {/* Color Palette */}
-            <div className="mb-4">
-              <label className="text-white text-xs mb-2 block">Quick Colors</label>
-              <div className="grid grid-cols-8 gap-2">
+            {/* Quick Colors */}
+            <div className="mb-3">
+              <div className="grid grid-cols-6 gap-2">
                 {[
-                  '#ffffff', '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
-                  '#ccffe6', '#ffccf2', '#d4ccff', '#fff4cc', '#ccffcc', '#ffcce6',
-                  '#e6f2ff', '#f2ffcc', '#ffccdc', '#ccf2e6', '#e6ccf2', '#f2ccff',
-                  '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b', '#eb4d4b',
-                  '#6c5ce7', '#a29bfe', '#fd79a8', '#fdcb6e', '#e17055', '#00b894',
-                  '#74b9ff', '#81ecec', '#fab1a0', '#00cec9', '#000000'
+                  '#ffffff', '#f4c2c2', '#ffcccc', '#ffe6cc', '#ccffe6', '#ccf2ff',
+                  '#e6ccff', '#f2ccff', '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24',
+                  '#6c5ce7', '#74b9ff', '#00b894', '#fdcb6e', '#fd79a8', '#000000'
                 ].map((color, index) => (
                   <button
                     key={index}
-                    className="w-6 h-6 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors"
+                    className="w-6 h-6 rounded border border-gray-600 hover:border-[#f4c2c2] transition-colors"
                     style={{ backgroundColor: color }}
                     onClick={() => {
                       if (colorPickerTag) {
@@ -3013,15 +3008,39 @@ const MilanoteClone = () => {
               </div>
             </div>
             
-            {/* Photoshop-Style Color Picker */}
-            <div className="mb-4">
-              <label className="text-white text-xs mb-2 block">Advanced Color Picker</label>
-              
+            {/* Advanced Color Picker */}
+            <div>
               {/* Main Color Area */}
-              <div className="relative w-full h-48 mb-3 rounded border border-gray-600 cursor-crosshair overflow-hidden"
+              <div className="relative w-full h-32 mb-2 rounded border border-gray-600 overflow-hidden"
                 style={{
                   background: `linear-gradient(to right, white, hsl(${colorPickerHue}, 100%, 50%)), 
                               linear-gradient(to bottom, transparent, black)`
+                }}
+                onMouseDown={(e) => {
+                  const handleMouseMove = (e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const saturation = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                    const lightness = Math.max(0, Math.min(100, 100 - (y / rect.height) * 100));
+                    setColorPickerSaturation(saturation);
+                    setColorPickerLightness(lightness);
+                    const color = `hsl(${colorPickerHue}, ${saturation}%, ${lightness}%)`;
+                    if (colorPickerTag) {
+                      setTags(prev => prev.map(t => 
+                        t.id === colorPickerTag.id ? { ...t, color } : t
+                      ));
+                    }
+                  };
+                  
+                  const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                  };
+                  
+                  handleMouseMove(e);
+                  document.addEventListener('mousemove', handleMouseMove);
+                  document.addEventListener('mouseup', handleMouseUp);
                 }}
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -3051,19 +3070,28 @@ const MilanoteClone = () => {
               </div>
               
               {/* Hue Slider */}
-              <div className="mb-3">
-                <label className="text-white text-xs mb-1 block">Hue</label>
+              <div className="mb-2">
                 <input
                   type="range"
                   min="0"
                   max="360"
                   value={colorPickerHue}
-                  className="w-full h-4 rounded appearance-none cursor-pointer"
+                  className="w-full h-3 rounded appearance-none cursor-pointer"
                   style={{
                     background: `linear-gradient(to right, 
                       hsl(0, 100%, 50%), hsl(60, 100%, 50%), hsl(120, 100%, 50%), 
                       hsl(180, 100%, 50%), hsl(240, 100%, 50%), hsl(300, 100%, 50%), 
                       hsl(360, 100%, 50%))`
+                  }}
+                  onInput={(e) => {
+                    const hue = parseInt(e.target.value);
+                    setColorPickerHue(hue);
+                    const color = `hsl(${hue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)`;
+                    if (colorPickerTag) {
+                      setTags(prev => prev.map(t => 
+                        t.id === colorPickerTag.id ? { ...t, color } : t
+                      ));
+                    }
                   }}
                   onChange={(e) => {
                     const hue = parseInt(e.target.value);
@@ -3078,46 +3106,11 @@ const MilanoteClone = () => {
                 />
               </div>
               
-              {/* Current Color Display */}
-              <div className="flex items-center gap-3 mb-3">
+              {/* Current Color Preview */}
+              <div className="flex items-center gap-2">
                 <div 
-                  className="w-12 h-12 rounded border border-gray-600"
+                  className="w-8 h-8 rounded border border-gray-600"
                   style={{ backgroundColor: `hsl(${colorPickerHue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)` }}
-                />
-                <div className="flex-1">
-                  <div className="text-white text-xs">
-                    Current: hsl({Math.round(colorPickerHue)}, {Math.round(colorPickerSaturation)}%, {Math.round(colorPickerLightness)}%)
-                  </div>
-                </div>
-              </div>
-              
-              {/* Hex Input */}
-              <div>
-                <label className="text-white text-xs mb-1 block">Hex Color</label>
-                <input
-                  type="text"
-                  placeholder="#000000"
-                  className="w-full bg-[#2d2d2d] text-white border border-gray-600 rounded px-3 py-2 text-sm"
-                  onBlur={(e) => {
-                    const hex = e.target.value;
-                    if (hex.match(/^#[0-9A-F]{6}$/i) && colorPickerTag) {
-                      setTags(prev => prev.map(t => 
-                        t.id === colorPickerTag.id ? { ...t, color: hex } : t
-                      ));
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const hex = e.target.value;
-                      if (hex.match(/^#[0-9A-F]{6}$/i) && colorPickerTag) {
-                        setTags(prev => prev.map(t => 
-                          t.id === colorPickerTag.id ? { ...t, color: hex } : t
-                        ));
-                        setShowColorPicker(false);
-                        setColorPickerTag(null);
-                      }
-                    }
-                  }}
                 />
               </div>
             </div>
@@ -3567,27 +3560,21 @@ const MilanoteClone = () => {
       {/* Photoshop-Style Color Picker */}
       {noteColorPicker.show && (
         <div
-          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-4 z-50 w-[320px]"
+          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 z-50 w-[260px]"
           style={{ left: noteColorPicker.x, top: noteColorPicker.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <h4 className="text-white font-medium mb-3">Color Picker</h4>
-          
-          {/* Color Palette */}
-          <div className="mb-4">
-            <label className="text-white text-xs mb-2 block">Quick Colors</label>
-            <div className="grid grid-cols-8 gap-2">
+          {/* Quick Colors */}
+          <div className="mb-3">
+            <div className="grid grid-cols-6 gap-2">
               {[
-                '#ffffff', '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
-                '#ccffe6', '#ffccf2', '#d4ccff', '#fff4cc', '#ccffcc', '#ffcce6',
-                '#e6f2ff', '#f2ffcc', '#ffccdc', '#ccf2e6', '#e6ccf2', '#f2ccff',
-                '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b', '#eb4d4b',
-                '#6c5ce7', '#a29bfe', '#fd79a8', '#fdcb6e', '#e17055', '#00b894',
-                '#74b9ff', '#81ecec', '#fab1a0', '#00cec9', '#000000'
+                '#ffffff', '#f4c2c2', '#ffcccc', '#ffe6cc', '#ccffe6', '#ccf2ff',
+                '#e6ccff', '#f2ccff', '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24',
+                '#6c5ce7', '#74b9ff', '#00b894', '#fdcb6e', '#fd79a8', '#000000'
               ].map((color, index) => (
                 <button
                   key={index}
-                  className="w-6 h-6 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors"
+                  className="w-6 h-6 rounded border border-gray-600 hover:border-[#f4c2c2] transition-colors"
                   style={{ backgroundColor: color }}
                   onClick={() => {
                     changeItemColor(noteColorPicker.itemId, color);
@@ -3598,15 +3585,35 @@ const MilanoteClone = () => {
             </div>
           </div>
           
-          {/* Photoshop-Style Color Picker */}
-          <div className="mb-4">
-            <label className="text-white text-xs mb-2 block">Advanced Color Picker</label>
-            
+          {/* Advanced Color Picker */}
+          <div>
             {/* Main Color Area */}
-            <div className="relative w-full h-48 mb-3 rounded border border-gray-600 cursor-crosshair overflow-hidden"
+            <div className="relative w-full h-32 mb-2 rounded border border-gray-600 overflow-hidden"
               style={{
                 background: `linear-gradient(to right, white, hsl(${colorPickerHue}, 100%, 50%)), 
                             linear-gradient(to bottom, transparent, black)`
+              }}
+              onMouseDown={(e) => {
+                const handleMouseMove = (e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const y = e.clientY - rect.top;
+                  const saturation = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                  const lightness = Math.max(0, Math.min(100, 100 - (y / rect.height) * 100));
+                  setColorPickerSaturation(saturation);
+                  setColorPickerLightness(lightness);
+                  const color = `hsl(${colorPickerHue}, ${saturation}%, ${lightness}%)`;
+                  changeItemColor(noteColorPicker.itemId, color);
+                };
+                
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+                
+                handleMouseMove(e);
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
               }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -3632,19 +3639,24 @@ const MilanoteClone = () => {
             </div>
             
             {/* Hue Slider */}
-            <div className="mb-3">
-              <label className="text-white text-xs mb-1 block">Hue</label>
+            <div className="mb-2">
               <input
                 type="range"
                 min="0"
                 max="360"
                 value={colorPickerHue}
-                className="w-full h-4 rounded appearance-none cursor-pointer"
+                className="w-full h-3 rounded appearance-none cursor-pointer"
                 style={{
                   background: `linear-gradient(to right, 
                     hsl(0, 100%, 50%), hsl(60, 100%, 50%), hsl(120, 100%, 50%), 
                     hsl(180, 100%, 50%), hsl(240, 100%, 50%), hsl(300, 100%, 50%), 
                     hsl(360, 100%, 50%))`
+                }}
+                onInput={(e) => {
+                  const hue = parseInt(e.target.value);
+                  setColorPickerHue(hue);
+                  const color = `hsl(${hue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)`;
+                  changeItemColor(noteColorPicker.itemId, color);
                 }}
                 onChange={(e) => {
                   const hue = parseInt(e.target.value);
@@ -3655,41 +3667,11 @@ const MilanoteClone = () => {
               />
             </div>
             
-            {/* Current Color Display */}
-            <div className="flex items-center gap-3 mb-3">
+            {/* Current Color Preview */}
+            <div className="flex items-center gap-2">
               <div 
-                className="w-12 h-12 rounded border border-gray-600"
+                className="w-8 h-8 rounded border border-gray-600"
                 style={{ backgroundColor: `hsl(${colorPickerHue}, ${colorPickerSaturation}%, ${colorPickerLightness}%)` }}
-              />
-              <div className="flex-1">
-                <div className="text-white text-xs">
-                  Current: hsl({Math.round(colorPickerHue)}, {Math.round(colorPickerSaturation)}%, {Math.round(colorPickerLightness)}%)
-                </div>
-              </div>
-            </div>
-            
-            {/* Hex Input */}
-            <div>
-              <label className="text-white text-xs mb-1 block">Hex Color</label>
-              <input
-                type="text"
-                placeholder="#000000"
-                className="w-full bg-[#2d2d2d] text-white border border-gray-600 rounded px-3 py-2 text-sm"
-                onBlur={(e) => {
-                  const hex = e.target.value;
-                  if (hex.match(/^#[0-9A-F]{6}$/i)) {
-                    changeItemColor(noteColorPicker.itemId, hex);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const hex = e.target.value;
-                    if (hex.match(/^#[0-9A-F]{6}$/i)) {
-                      changeItemColor(noteColorPicker.itemId, hex);
-                      setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
-                    }
-                  }
-                }}
               />
             </div>
           </div>
