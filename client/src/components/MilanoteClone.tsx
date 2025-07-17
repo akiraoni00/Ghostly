@@ -3856,7 +3856,16 @@ const MilanoteClone = () => {
                       if (media.audioElement) {
                         media.audioElement.pause();
                         media.audioElement.currentTime = 0;
+                        // Clean up the audio element to prevent memory leaks
+                        media.audioElement.src = '';
+                        media.audioElement.load();
                       }
+                      // Remove from audioElements map
+                      setAudioElements(prev => {
+                        const newMap = new Map(prev);
+                        newMap.delete(media.id);
+                        return newMap;
+                      });
                       // Update media timeline state
                       setMediaTimeline(prevTimeline => 
                         prevTimeline.filter(item => item.id !== media.id)
