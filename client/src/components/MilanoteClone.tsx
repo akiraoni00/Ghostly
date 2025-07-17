@@ -216,6 +216,16 @@ const MilanoteClone = () => {
     }));
   }, [audioElements]);
 
+  const updateMediaTime = useCallback((id, newTime) => {
+    const audioEl = audioElements.get(id);
+    if (audioEl) {
+      audioEl.currentTime = newTime;
+      setMediaTimeline(prev => prev.map(item => 
+        item.id === id ? { ...item, currentTime: newTime } : item
+      ));
+    }
+  }, [audioElements]);
+
   // Video URL detection utility
   const getVideoEmbedUrl = useCallback((url) => {
     if (!url) return null;
@@ -2521,15 +2531,7 @@ const MilanoteClone = () => {
                         
                         {/* Regular link or editing display */}
                         {(!getVideoEmbedUrl(item.url) || editingItem?.id === item.id) && (
-                          <div 
-                            className="p-3 cursor-pointer hover:opacity-90 transition-colors h-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (item.url && !editingItem) {
-                                window.open(item.url, '_blank');
-                              }
-                            }}
-                          >
+                          <div className="p-3 h-full">
                             <div className="flex items-start space-x-2 h-full">
                               <Link2 size={16} className="text-blue-600 mt-1 flex-shrink-0" />
                               <div className="flex-1 space-y-1 h-full">
@@ -2595,14 +2597,22 @@ const MilanoteClone = () => {
                                 />
                               </div>
                             ) : (
-                              <>
-                                <div className="text-gray-800 font-medium text-sm break-words">
+                              <div 
+                                className="cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (item.url) {
+                                    window.open(item.url, '_blank');
+                                  }
+                                }}
+                              >
+                                <div className="text-black font-medium text-sm break-words">
                                   {item.title || 'Untitled Link'}
                                 </div>
-                                <div className="text-blue-600 text-xs break-all">
+                                <div className="text-blue-600 text-xs break-all hover:underline">
                                   {item.url || 'No URL'}
                                 </div>
-                              </>
+                              </div>
                             )}
                               </div>
                             </div>
@@ -3648,42 +3658,51 @@ const MilanoteClone = () => {
         </div>
       )}
 
-      {/* Media Timeline */}
+      {/* Media Player - Top Right */}
       {mediaTimeline.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-[#f4c2c2] p-4 z-40">
-          <h4 className="text-[#f4c2c2] text-sm font-medium mb-3">Media Timeline</h4>
-          <div className="space-y-2">
+        <div className="fixed top-16 right-4 bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-4 z-40 w-80 max-h-96 overflow-y-auto">
+          <h4 className="text-[#f4c2c2] text-sm font-medium mb-3">Media Player</h4>
+          <div className="space-y-3">
             {mediaTimeline.map(media => (
-              <div key={media.id} className="bg-[#2d2d2d] rounded-lg p-3 flex items-center space-x-3">
-                <button
-                  onClick={() => toggleMediaPlayback(media.id)}
-                  className="w-8 h-8 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors"
-                >
-                  {media.isPlaying ? <Minus size={14} /> : <div className="w-0 h-0 border-l-[5px] border-l-black border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent ml-0.5" />}
-                </button>
-                
-                <div className="flex-1">
-                  <div className="text-white text-sm font-medium">{media.title}</div>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <div className="bg-[#1a1a1a] rounded-full h-2 flex-1 overflow-hidden">
-                      <div 
-                        className="bg-[#f4c2c2] h-full transition-all duration-200"
-                        style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-gray-400 text-xs">
-                      {Math.floor(media.currentTime / 60)}:{String(Math.floor(media.currentTime % 60)).padStart(2, '0')} / 
-                      {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, '0')}
-                    </span>
+              <div key={media.id} className="bg-[#2d2d2d] rounded-lg p-3">
+                <div className="flex items-center space-x-3 mb-2">
+                  <button
+                    onClick={() => toggleMediaPlayback(media.id)}
+                    className="w-8 h-8 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors flex-shrink-0"
+                  >
+                    {media.isPlaying ? <Minus size={14} /> : <div className="w-0 h-0 border-l-[5px] border-l-black border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent ml-0.5" />}
+                  </button>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white text-sm font-medium truncate">{media.title}</div>
                   </div>
+                  
+                  <button
+                    onClick={() => removeFromMediaTimeline(media.id)}
+                    className="w-6 h-6 text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
                 
-                <button
-                  onClick={() => removeFromMediaTimeline(media.id)}
-                  className="w-6 h-6 text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex items-center space-x-2">
+                  <div className="bg-[#1a1a1a] rounded-full h-3 flex-1 overflow-hidden cursor-pointer"
+                       onClick={(e) => {
+                         const rect = e.currentTarget.getBoundingClientRect();
+                         const percentage = (e.clientX - rect.left) / rect.width;
+                         const newTime = percentage * media.duration;
+                         updateMediaTime(media.id, newTime);
+                       }}>
+                    <div 
+                      className="bg-[#f4c2c2] h-full transition-all duration-200"
+                      style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-gray-400 text-xs flex-shrink-0 w-16 text-right">
+                    {Math.floor(media.currentTime / 60)}:{String(Math.floor(media.currentTime % 60)).padStart(2, '0')} / 
+                    {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, '0')}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
