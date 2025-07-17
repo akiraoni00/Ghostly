@@ -1930,9 +1930,15 @@ const MilanoteClone = () => {
 
   // Close context menu and color picker on click
   useEffect(() => {
-    const handleClick = () => {
+    const handleClick = (e) => {
+      // Don't close if clicking inside a color picker modal
+      if (e.target.closest('.color-picker-modal')) {
+        return;
+      }
       setContextMenu(null);
       setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+      setShowColorPicker(false);
+      setColorPickerTag(null);
     };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
@@ -2979,8 +2985,9 @@ const MilanoteClone = () => {
           }}
         >
           <div 
-            className="bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 w-[260px]"
+            className="bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 w-[260px] color-picker-modal"
             onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Quick Colors */}
             <div className="mb-3">
@@ -3558,9 +3565,10 @@ const MilanoteClone = () => {
       {/* Photoshop-Style Color Picker */}
       {noteColorPicker.show && (
         <div
-          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 z-50 w-[260px]"
+          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 z-50 w-[260px] color-picker-modal"
           style={{ left: noteColorPicker.x, top: noteColorPicker.y }}
           onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Quick Colors */}
           <div className="mb-3">
