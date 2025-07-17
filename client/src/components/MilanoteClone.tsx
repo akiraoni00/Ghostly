@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Move, Network, MapPin, GitBranch, Volume2 } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Move, Network, MapPin, GitBranch, Volume2, Volume1, VolumeX, ExternalLink } from 'lucide-react';
 
 // Custom Hand Icon Component - Standard hand/grab cursor icon
 const SharpHandIcon = ({ size = 16, className = "" }) => (
@@ -2334,12 +2334,12 @@ const MilanoteClone = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             ) : (
-                              <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
+                              <h4 className="text-white font-medium text-base truncate flex-1">{item.title}</h4>
                             )}
                           </div>
 
                           <div className="flex-1 overflow-hidden">
-                            <div className="text-gray-300 text-xs leading-relaxed line-clamp-4">
+                            <div className="text-gray-300 text-sm leading-relaxed line-clamp-4">
                               {item.content.replace(/^#.*$/gm, '').slice(0, 100)}...
                             </div>
                           </div>
@@ -2547,8 +2547,8 @@ const MilanoteClone = () => {
                         {/* Regular link or editing display */}
                         {(!getVideoEmbedUrl(item.url) || editingItem?.id === item.id) && (
                           <div className="p-3 h-full">
-                            <div className="flex items-start space-x-2 h-full">
-                              <Link2 size={16} className="text-blue-600 mt-1 flex-shrink-0" />
+                            <div className="flex items-start space-x-3 h-full">
+                              <ExternalLink size={18} className="text-black mt-1 flex-shrink-0" />
                               <div className="flex-1 space-y-1 h-full">
                                 {editingItem?.id === item.id ? (
                                   <div className="h-full flex flex-col space-y-2">
@@ -2577,7 +2577,7 @@ const MilanoteClone = () => {
                                       setEditingItem(null);
                                     }
                                   }}
-                                  className="w-full text-gray-800 font-medium text-sm bg-transparent border-b border-gray-400 outline-none"
+                                  className="w-full text-gray-800 font-medium text-base bg-transparent border-b border-gray-400 outline-none"
                                   placeholder="Link title"
                                   autoFocus
                                   onClick={(e) => e.stopPropagation()}
@@ -2790,7 +2790,7 @@ const MilanoteClone = () => {
                               onClick={(e) => e.stopPropagation()}
                             />
                           ) : (
-                            <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
+                            <h4 className="text-white font-medium text-base truncate flex-1">{item.title}</h4>
                           )}
                         </div>
                         {(() => {
@@ -2834,18 +2834,63 @@ const MilanoteClone = () => {
                         
                         <div className="bg-[#0d0d0d] rounded-lg p-2">
                           <div className="flex items-center space-x-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleMediaPlayback(item.id);
-                              }}
-                              className="w-6 h-6 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors"
-                            >
-                              {mediaTimeline.find(m => m.id === item.id)?.isPlaying ? 
-                                <div className="w-2 h-2 bg-black rounded-sm" /> : 
-                                <div className="w-0 h-0 border-l-[4px] border-l-black border-t-[2px] border-t-transparent border-b-[2px] border-b-transparent ml-0.5" />
-                              }
-                            </button>
+                            <div className="relative group">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleMediaPlayback(item.id);
+                                }}
+                                className="w-8 h-8 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors"
+                              >
+                                {mediaTimeline.find(m => m.id === item.id)?.isPlaying ? 
+                                  <div className="flex space-x-0.5">
+                                    <div className="w-1 h-3 bg-black" />
+                                    <div className="w-1 h-3 bg-black" />
+                                  </div> : 
+                                  <div className="w-0 h-0 border-l-[6px] border-l-black border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent ml-1" />
+                                }
+                              </button>
+                              
+                              {/* Volume Control on Hover */}
+                              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#0d0d0d] border border-[#333] rounded-lg p-2 z-50">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const media = mediaTimeline.find(m => m.id === item.id);
+                                      if (media) {
+                                        updateMediaVolume(item.id, media.volume > 0 ? 0 : 1);
+                                      }
+                                    }}
+                                    className="text-gray-400 hover:text-white transition-colors"
+                                  >
+                                    {(() => {
+                                      const media = mediaTimeline.find(m => m.id === item.id);
+                                      const volume = media?.volume || 1;
+                                      return volume === 0 ? 
+                                        <VolumeX size={14} /> : 
+                                        volume < 0.5 ? 
+                                          <Volume1 size={14} /> : 
+                                          <Volume2 size={14} />;
+                                    })()}
+                                  </button>
+                                  <div 
+                                    className="w-16 h-2 bg-[#333] rounded-full overflow-hidden cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      const percentage = (e.clientX - rect.left) / rect.width;
+                                      updateMediaVolume(item.id, Math.max(0, Math.min(1, percentage)));
+                                    }}
+                                  >
+                                    <div 
+                                      className="bg-[#f4c2c2] h-full transition-all duration-100"
+                                      style={{ width: `${(mediaTimeline.find(m => m.id === item.id)?.volume || 1) * 100}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                             <div className="flex-1 h-1 bg-[#333] rounded-full overflow-hidden">
                               {(() => {
                                 const media = mediaTimeline.find(m => m.id === item.id);
@@ -3746,18 +3791,57 @@ const MilanoteClone = () => {
             {mediaTimeline.map(media => (
               <div key={media.id} className="bg-[#1a1a1a] rounded-md p-2 hover:bg-[#222] transition-colors">
                 <div className="flex items-center space-x-2 mb-1">
-                  <button
-                    onClick={() => toggleMediaPlayback(media.id)}
-                    className="w-5 h-5 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors flex-shrink-0"
-                  >
-                    {media.isPlaying ? 
-                      <div className="w-1.5 h-1.5 bg-black rounded-sm" /> : 
-                      <div className="w-0 h-0 border-l-[3px] border-l-black border-t-[1.5px] border-t-transparent border-b-[1.5px] border-b-transparent ml-0.5" />
-                    }
-                  </button>
+                  <div className="relative group">
+                    <button
+                      onClick={() => toggleMediaPlayback(media.id)}
+                      className="w-6 h-6 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors flex-shrink-0"
+                    >
+                      {media.isPlaying ? 
+                        <div className="flex space-x-0.5">
+                          <div className="w-0.5 h-2 bg-black" />
+                          <div className="w-0.5 h-2 bg-black" />
+                        </div> : 
+                        <div className="w-0 h-0 border-l-[4px] border-l-black border-t-[2.5px] border-t-transparent border-b-[2.5px] border-b-transparent ml-0.5" />
+                      }
+                    </button>
+                    
+                    {/* Volume Control on Hover */}
+                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#0d0d0d] border border-[#333] rounded-lg p-1 z-50">
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateMediaVolume(media.id, media.volume > 0 ? 0 : 1);
+                          }}
+                          className="text-gray-400 hover:text-white transition-colors"
+                        >
+                          {media.volume === 0 ? 
+                            <VolumeX size={12} /> : 
+                            media.volume < 0.5 ? 
+                              <Volume1 size={12} /> : 
+                              <Volume2 size={12} />
+                          }
+                        </button>
+                        <div 
+                          className="w-12 h-1 bg-[#333] rounded-full overflow-hidden cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const percentage = (e.clientX - rect.left) / rect.width;
+                            updateMediaVolume(media.id, Math.max(0, Math.min(1, percentage)));
+                          }}
+                        >
+                          <div 
+                            className="bg-[#f4c2c2] h-full transition-all duration-100"
+                            style={{ width: `${media.volume * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-xs font-medium truncate">{media.title}</div>
+                    <div className="text-white text-sm font-medium truncate">{media.title}</div>
                   </div>
                   
                   <span className="text-gray-500 text-xs flex-shrink-0">
