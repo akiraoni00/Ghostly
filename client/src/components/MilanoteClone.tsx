@@ -130,6 +130,138 @@ const MilanoteClone = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   
+  // New features state
+  const [shortcuts, setShortcuts] = useState(() => {
+    const savedShortcuts = localStorage.getItem('ghostly-shortcuts');
+    return savedShortcuts ? JSON.parse(savedShortcuts) : {
+      hand: 'h',
+      select: 's',
+      rectangleSelect: 'r',
+      board: 'b', 
+      note: 'n',
+      textfile: 't',
+      image: 'i',
+      link: 'l',
+      line: 'v',
+      todo: 'o',
+      tag: 'g',
+      projectManager: 'p',
+      tagManager: 'm'
+    };
+  });
+  const [showSettings, setShowSettings] = useState(false);
+  const [editingShortcut, setEditingShortcut] = useState(null);
+  const [colors, setColors] = useState(() => {
+    const savedColors = localStorage.getItem('ghostly-colors');
+    return savedColors ? JSON.parse(savedColors) : {
+      accent: '#f4c2c2',
+      background: '#000000',
+      surface: '#1a1a1a',
+      text: '#ffffff',
+      textSecondary: '#9ca3af',
+      border: '#374151'
+    };
+  });
+  const [editingColor, setEditingColor] = useState(null);
+  const [showTagColorPicker, setShowTagColorPicker] = useState(false);
+  const [tagColorPickerPosition, setTagColorPickerPosition] = useState({ x: 0, y: 0 });
+  const [editingTagColor, setEditingTagColor] = useState(null);
+  
+  // Media timeline state
+  const [mediaTimeline, setMediaTimeline] = useState([]);
+  const [audioElements, setAudioElements] = useState(new Map());
+
+  // Utility functions for media timeline
+  const addToMediaTimeline = useCallback((id, title, type, duration, src) => {
+    const mediaItem = {
+      id,
+      title,
+      type, // 'audio' or 'video'
+      duration,
+      src,
+      currentTime: 0,
+      isPlaying: false,
+      volume: 1
+    };
+    
+    setMediaTimeline(prev => [...prev, mediaItem]);
+  }, []);
+
+  const removeFromMediaTimeline = useCallback((id) => {
+    setMediaTimeline(prev => prev.filter(item => item.id !== id));
+    
+    // Clean up audio element if it exists
+    const audioEl = audioElements.get(id);
+    if (audioEl) {
+      audioEl.pause();
+      audioElements.delete(id);
+      setAudioElements(new Map(audioElements));
+    }
+  }, [audioElements]);
+
+  const toggleMediaPlayback = useCallback((id) => {
+    setMediaTimeline(prev => prev.map(item => {
+      if (item.id === id) {
+        const audioEl = audioElements.get(id);
+        if (audioEl) {
+          if (item.isPlaying) {
+            audioEl.pause();
+          } else {
+            audioEl.play();
+          }
+        }
+        return { ...item, isPlaying: !item.isPlaying };
+      }
+      return item;
+    }));
+  }, [audioElements]);
+
+  // Video URL detection utility
+  const getVideoEmbedUrl = useCallback((url) => {
+    if (!url) return null;
+    
+    // YouTube URLs
+    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const youtubeMatch = url.match(youtubeRegex);
+    if (youtubeMatch) {
+      return `https://www.youtube.com/embed/${youtubeMatch[1]}?enablejsapi=1`;
+    }
+
+    // Vimeo URLs
+    const vimeoRegex = /(?:vimeo)\.com.*(?:videos|video|channels|)\/([\d]+)/i;
+    const vimeoMatch = url.match(vimeoRegex);
+    if (vimeoMatch) {
+      return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+    }
+
+    // Dailymotion URLs
+    const dailymotionRegex = /(?:dailymotion\.com\/(?:video|embed)\/|dai\.ly\/)([A-Za-z0-9]+)/;
+    const dailymotionMatch = url.match(dailymotionRegex);
+    if (dailymotionMatch) {
+      return `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}`;
+    }
+
+    return null;
+  }, []);
+
+  // Keyboard shortcut editing
+  const updateShortcut = useCallback((action, newKey) => {
+    const updatedShortcuts = { ...shortcuts, [action]: newKey };
+    setShortcuts(updatedShortcuts);
+    localStorage.setItem('ghostly-shortcuts', JSON.stringify(updatedShortcuts));
+  }, [shortcuts]);
+
+  // Tag color updating
+  const updateTagColor = useCallback((tagId, newColor) => {
+    setTags(prev => {
+      const updatedTags = prev.map(tag => 
+        tag.id === tagId ? { ...tag, color: newColor } : tag
+      );
+      localStorage.setItem('ghostly-tags', JSON.stringify(updatedTags));
+      return updatedTags;
+    });
+  }, []);
+  
   // Search functionality
   const performSearch = useCallback((query) => {
     if (!query.trim()) {
@@ -197,60 +329,16 @@ const MilanoteClone = () => {
     setSearchResults(results);
   }, [boards]);
 
-  // Settings and theme state
-  const [showSettings, setShowSettings] = useState(false);
-  const [shortcuts, setShortcuts] = useState(() => {
-    const saved = localStorage.getItem('ghostly-shortcuts');
-    return saved ? JSON.parse(saved) : {
-      hand: 'h',
-      select: 'v',
-      rectangleSelect: 'r',
-      board: 'b',
-      note: 'n', 
-      textfile: 't',
-      image: 'i',
-      link: 'l',
-      line: 'p',
-      todo: 'c',
-      tag: 'g',
-      undo: 'z',
-      redo: 'y',
-      zoomIn: '=',
-      zoomOut: '-',
-      projectManager: 'o',
-      tagManager: 'f'
-    };
-  });
-  const [colors, setColors] = useState(() => {
-    const saved = localStorage.getItem('ghostly-colors');
-    return saved ? JSON.parse(saved) : {
-      accent: '#f4c2c2',
-      background: '#1a1a1a',
-      surface: '#2d2d2d',
-      text: '#ffffff',
-      textSecondary: '#a0a0a0',
-      border: '#404040'
-    };
-  });
-  
-  // Apply color theme to CSS variables
-  const applyColorTheme = useCallback((themeColors) => {
-    const root = document.documentElement;
-    root.style.setProperty('--color-accent', themeColors.accent);
-    root.style.setProperty('--color-background', themeColors.background);
-    root.style.setProperty('--color-surface', themeColors.surface);
-    root.style.setProperty('--color-text', themeColors.text);
-    root.style.setProperty('--color-text-secondary', themeColors.textSecondary);
-    root.style.setProperty('--color-border', themeColors.border);
-  }, []);
-
   // Apply colors on mount and whenever colors change
   useEffect(() => {
-    applyColorTheme(colors);
-  }, [colors, applyColorTheme]);
-  
-  const [editingShortcut, setEditingShortcut] = useState(null);
-  const [editingColor, setEditingColor] = useState(null);
+    const root = document.documentElement;
+    root.style.setProperty('--color-accent', colors.accent);
+    root.style.setProperty('--color-background', colors.background);
+    root.style.setProperty('--color-surface', colors.surface);
+    root.style.setProperty('--color-text', colors.text);
+    root.style.setProperty('--color-text-secondary', colors.textSecondary);
+    root.style.setProperty('--color-border', colors.border);
+  }, [colors]);
   
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -2403,31 +2491,54 @@ const MilanoteClone = () => {
 
                     {item.type === 'link' && (
                       <div 
-                        className={`rounded-lg shadow-xl border p-3 cursor-pointer hover:opacity-90 transition-colors ${
+                        className={`rounded-lg shadow-xl border overflow-hidden ${
                           editingItem?.id === item.id ? 'border-[#f4c2c2]' : 'border-gray-300'
                         }`}
                         style={{
                           width: item.width || 200,
-                          height: item.height || 80,
+                          height: item.height || (getVideoEmbedUrl(item.url) ? 180 : 80),
                           backgroundColor: item.color || '#f8fafc',
                           borderColor: editingItem?.id === item.id ? '#f4c2c2' : (item.color ? item.color : '#e2e8f0')
                         }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (item.url && !editingItem) {
-                            window.open(item.url, '_blank');
-                          }
-                        }}
                       >
-                        <div className="flex items-start space-x-2 h-full">
-                          <Link2 size={16} className="text-blue-600 mt-1 flex-shrink-0" />
-                          <div className="flex-1 space-y-1 h-full">
-                            {editingItem?.id === item.id ? (
-                              <div className="h-full flex flex-col space-y-2">
-                                <input
-                                  type="text"
-                                  defaultValue={item.title || ''}
-                                  onBlur={(e) => {
+                        {/* Video embed section */}
+                        {getVideoEmbedUrl(item.url) && !editingItem?.id === item.id && (
+                          <div className="h-full">
+                            <iframe
+                              src={getVideoEmbedUrl(item.url)}
+                              title={item.title || 'Video'}
+                              className="w-full h-full rounded-t-lg"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              onError={() => {
+                                // Fallback to regular link display if iframe fails
+                                console.warn('Video embed failed, showing as regular link');
+                              }}
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Regular link or editing display */}
+                        {(!getVideoEmbedUrl(item.url) || editingItem?.id === item.id) && (
+                          <div 
+                            className="p-3 cursor-pointer hover:opacity-90 transition-colors h-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.url && !editingItem) {
+                                window.open(item.url, '_blank');
+                              }
+                            }}
+                          >
+                            <div className="flex items-start space-x-2 h-full">
+                              <Link2 size={16} className="text-blue-600 mt-1 flex-shrink-0" />
+                              <div className="flex-1 space-y-1 h-full">
+                                {editingItem?.id === item.id ? (
+                                  <div className="h-full flex flex-col space-y-2">
+                                    <input
+                                      type="text"
+                                      defaultValue={item.title || ''}
+                                      onBlur={(e) => {
                                     const newTitle = e.target.value;
                                     setBoards(prev => ({
                                       ...prev,
@@ -2493,8 +2604,10 @@ const MilanoteClone = () => {
                                 </div>
                               </>
                             )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     )}
 
@@ -2926,11 +3039,16 @@ const MilanoteClone = () => {
               {tags.map((tag) => (
                 <div key={tag.id} className="flex items-center space-x-3 p-2 rounded-lg bg-[#2d2d2d]">
                   <div 
-                    className="w-6 h-6 rounded-full border border-gray-600 cursor-pointer"
+                    className="w-6 h-6 rounded-full border border-gray-600 cursor-pointer hover:border-[#f4c2c2] transition-colors"
                     style={{ backgroundColor: tag.color }}
-                    onClick={() => {
-                      setColorPickerTag(tag);
-                      setShowColorPicker(true);
+                    onClick={(e) => {
+                      const rect = e.target.getBoundingClientRect();
+                      setTagColorPickerPosition({ 
+                        x: rect.right + 10, 
+                        y: rect.top 
+                      });
+                      setEditingTagColor(tag.id);
+                      setShowTagColorPicker(true);
                     }}
                   />
                   <span className="text-white flex-1">{tag.name}</span>
@@ -3340,12 +3458,35 @@ const MilanoteClone = () => {
                   {Object.entries(shortcuts).map(([action, key]) => (
                     <div key={action} className="flex items-center justify-between bg-[#2d2d2d] rounded p-3">
                       <span className="text-gray-300 text-sm capitalize">
-                        {action === 'textfile' ? 'Text File' : action.replace(/([A-Z])/g, ' $1')}
+                        {action === 'textfile' ? 'Text File' : 
+                         action === 'rectangleSelect' ? 'Rectangle Select' :
+                         action === 'projectManager' ? 'Project Manager' :
+                         action === 'tagManager' ? 'Tag Manager' :
+                         action.replace(/([A-Z])/g, ' $1')}
                       </span>
                       <button
-                        className="bg-[#1a1a1a] border border-gray-600 rounded px-2 py-1 text-[#f4c2c2] text-sm min-w-[48px] hover:border-[#f4c2c2] transition-colors"
+                        className={`bg-[#1a1a1a] border border-gray-600 rounded px-2 py-1 text-[#f4c2c2] text-sm min-w-[48px] hover:border-[#f4c2c2] transition-colors ${
+                          editingShortcut === action ? 'ring-2 ring-[#f4c2c2]' : ''
+                        }`}
+                        onClick={() => {
+                          setEditingShortcut(action);
+                        }}
+                        onKeyDown={(e) => {
+                          if (editingShortcut === action) {
+                            e.preventDefault();
+                            const newKey = e.key.toLowerCase();
+                            if (newKey.length === 1 && newKey.match(/[a-z]/)) {
+                              updateShortcut(action, newKey);
+                              setEditingShortcut(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingShortcut(null);
+                            }
+                          }
+                        }}
+                        onBlur={() => setEditingShortcut(null)}
+                        autoFocus={editingShortcut === action}
                       >
-                        {key.toUpperCase() || '?'}
+                        {editingShortcut === action ? 'Press key...' : (key.toUpperCase() || '?')}
                       </button>
                     </div>
                   ))}
@@ -3498,6 +3639,92 @@ const MilanoteClone = () => {
               onClick={(e) => {
                 e.stopPropagation();
                 setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+              }}
+              className="px-3 py-1 text-gray-400 hover:text-white transition-colors text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Media Timeline */}
+      {mediaTimeline.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-[#f4c2c2] p-4 z-40">
+          <h4 className="text-[#f4c2c2] text-sm font-medium mb-3">Media Timeline</h4>
+          <div className="space-y-2">
+            {mediaTimeline.map(media => (
+              <div key={media.id} className="bg-[#2d2d2d] rounded-lg p-3 flex items-center space-x-3">
+                <button
+                  onClick={() => toggleMediaPlayback(media.id)}
+                  className="w-8 h-8 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors"
+                >
+                  {media.isPlaying ? <Minus size={14} /> : <div className="w-0 h-0 border-l-[5px] border-l-black border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent ml-0.5" />}
+                </button>
+                
+                <div className="flex-1">
+                  <div className="text-white text-sm font-medium">{media.title}</div>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <div className="bg-[#1a1a1a] rounded-full h-2 flex-1 overflow-hidden">
+                      <div 
+                        className="bg-[#f4c2c2] h-full transition-all duration-200"
+                        style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-gray-400 text-xs">
+                      {Math.floor(media.currentTime / 60)}:{String(Math.floor(media.currentTime % 60)).padStart(2, '0')} / 
+                      {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, '0')}
+                    </span>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => removeFromMediaTimeline(media.id)}
+                  className="w-6 h-6 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tag Color Picker */}
+      {showTagColorPicker && (
+        <div
+          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 z-50 w-[200px]"
+          style={{ left: tagColorPickerPosition.x, top: tagColorPickerPosition.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="grid grid-cols-5 gap-2">
+            {[
+              '#f4c2c2', '#ffcccc', '#ffe6cc', '#fff2cc', '#ccffe6', 
+              '#ccf2ff', '#e6ccff', '#f2ccff', '#ffeaa7', '#fab1a0',
+              '#fd79a8', '#dda0dd', '#ffffff', '#e9ecef', '#ced4da',
+              '#adb5bd', '#6c757d', '#495057', '#343a40', '#212529'
+            ].map((color, index) => (
+              <button
+                key={index}
+                className="w-6 h-6 rounded border border-gray-600 hover:border-[#f4c2c2] transition-colors"
+                style={{ backgroundColor: color }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (editingTagColor) {
+                    updateTagColor(editingTagColor, color);
+                  }
+                  setShowTagColorPicker(false);
+                  setEditingTagColor(null);
+                }}
+              />
+            ))}
+          </div>
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={() => {
+                setShowTagColorPicker(false);
+                setEditingTagColor(null);
               }}
               className="px-3 py-1 text-gray-400 hover:text-white transition-colors text-sm"
             >
