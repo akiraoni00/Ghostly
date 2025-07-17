@@ -2970,7 +2970,7 @@ const MilanoteClone = () => {
       {showColorPicker && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
-          onClick={(e) => {
+          onMouseDown={(e) => {
             // Only close if clicking the backdrop, not the modal content
             if (e.target === e.currentTarget) {
               setShowColorPicker(false);
@@ -2980,7 +2980,7 @@ const MilanoteClone = () => {
         >
           <div 
             className="bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 w-[260px]"
-            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             {/* Quick Colors */}
             <div className="mb-3">
@@ -3560,7 +3560,7 @@ const MilanoteClone = () => {
         <div
           className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-3 z-50 w-[260px]"
           style={{ left: noteColorPicker.x, top: noteColorPicker.y }}
-          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Quick Colors */}
           <div className="mb-3">
