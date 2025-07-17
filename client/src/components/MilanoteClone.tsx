@@ -14,10 +14,9 @@ const SharpHandIcon = ({ size = 16, className = "" }) => (
     strokeLinejoin="round"
     className={className}
   >
-    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5" />
-    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6" />
-    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v4.5" />
-    <path d="M18 11c1.1 0 2 .9 2 2v4a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-4c0-1.1.9-2 2-2z" />
+    <path d="M9 12l2 2 4-4" />
+    <path d="m6 17 3-3 3 3" />
+    <path d="m6 7 3 3 3-3" />
   </svg>
 );
 
@@ -1550,7 +1549,7 @@ const MilanoteClone = () => {
         })
       }
     }));
-    setColorPicker({ show: false, x: 0, y: 0, itemId: null });
+    setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
     saveToHistory();
   }, [currentBoard, saveToHistory]);
 
@@ -1932,7 +1931,7 @@ const MilanoteClone = () => {
   useEffect(() => {
     const handleClick = () => {
       setContextMenu(null);
-      setColorPicker({ show: false, x: 0, y: 0, itemId: null });
+      setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
     };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
