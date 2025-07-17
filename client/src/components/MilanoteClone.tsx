@@ -3787,9 +3787,6 @@ const MilanoteClone = () => {
       {/* Minimal Audio Manager - Top Right */}
       {mediaTimeline.length > 0 && (
         <div className="fixed top-16 right-4 bg-[#0d0d0d] border border-[#333] rounded-lg p-3 z-40 w-80 max-h-80 overflow-y-auto backdrop-blur-sm bg-opacity-95">
-          <div className="mb-2">
-            <h3 className="text-white text-base font-medium">Audio Timeline</h3>
-          </div>
           <div className="space-y-1">
             {mediaTimeline.map(media => (
               <div key={media.id} className="bg-[#1a1a1a] rounded-md p-2 hover:bg-[#222] transition-colors">
@@ -3852,13 +3849,18 @@ const MilanoteClone = () => {
                   </span>
                   
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       // Stop only this audio track and remove from timeline
                       if (media.audioElement) {
                         media.audioElement.pause();
                         media.audioElement.currentTime = 0;
                       }
-                      removeFromMediaTimeline(media.id);
+                      // Update media timeline state
+                      setMediaTimeline(prevTimeline => 
+                        prevTimeline.filter(item => item.id !== media.id)
+                      );
                     }}
                     className="w-5 h-5 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0 rounded hover:bg-red-500/20"
                     title="Stop and remove this track"
