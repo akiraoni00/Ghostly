@@ -2288,7 +2288,7 @@ const MilanoteClone = () => {
                         {editingItem?.id === item.id ? (
                           <textarea
                             defaultValue={item.content}
-                            className="w-full h-full bg-transparent border-none outline-none resize-none p-4 text-gray-800 text-sm leading-relaxed"
+                            className="w-full h-full bg-transparent border-none outline-none resize-none p-4 text-gray-800 text-base leading-relaxed"
                             onBlur={(e) => handleItemEdit(item, e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && e.ctrlKey) {
@@ -2299,7 +2299,7 @@ const MilanoteClone = () => {
                           />
                         ) : (
                           <div 
-                            className="w-full h-full p-4 text-gray-800 text-sm leading-relaxed whitespace-pre-wrap"
+                            className="w-full h-full p-4 text-gray-800 text-base leading-relaxed whitespace-pre-wrap"
                             onClick={() => setEditingItem(item)}
                           >
                             {item.content}
@@ -2315,7 +2315,7 @@ const MilanoteClone = () => {
                       >
                         <div className="p-3 h-full flex flex-col">
                           <div className="flex items-center space-x-2 mb-2">
-                            <FileText size={16} className="text-[#f4c2c2]" />
+                            <FileText size={20} className="text-[#f4c2c2]" />
                             {editingItem?.id === item.id ? (
                               <input
                                 type="text"
@@ -2334,12 +2334,12 @@ const MilanoteClone = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             ) : (
-                              <h4 className="text-white font-medium text-base truncate flex-1">{item.title}</h4>
+                              <h4 className="text-white font-medium text-lg truncate flex-1">{item.title}</h4>
                             )}
                           </div>
 
                           <div className="flex-1 overflow-hidden">
-                            <div className="text-gray-300 text-sm leading-relaxed line-clamp-4">
+                            <div className="text-gray-300 text-base leading-relaxed line-clamp-4">
                               {item.content.replace(/^#.*$/gm, '').slice(0, 100)}...
                             </div>
                           </div>
@@ -2548,7 +2548,7 @@ const MilanoteClone = () => {
                         {(!getVideoEmbedUrl(item.url) || editingItem?.id === item.id) && (
                           <div className="p-3 h-full">
                             <div className="flex items-start space-x-3 h-full">
-                              <ExternalLink size={18} className="text-black mt-1 flex-shrink-0" />
+                              <ExternalLink size={22} className="text-black mt-1 flex-shrink-0" />
                               <div className="flex-1 space-y-1 h-full">
                                 {editingItem?.id === item.id ? (
                                   <div className="h-full flex flex-col space-y-2">
@@ -2577,7 +2577,7 @@ const MilanoteClone = () => {
                                       setEditingItem(null);
                                     }
                                   }}
-                                  className="w-full text-gray-800 font-medium text-base bg-transparent border-b border-gray-400 outline-none"
+                                  className="w-full text-gray-800 font-medium text-lg bg-transparent border-b border-gray-400 outline-none"
                                   placeholder="Link title"
                                   autoFocus
                                   onClick={(e) => e.stopPropagation()}
@@ -2621,10 +2621,10 @@ const MilanoteClone = () => {
                                   }
                                 }}
                               >
-                                <div className="text-black font-medium text-base break-words">
+                                <div className="text-black font-medium text-lg break-words">
                                   {item.title || 'Untitled Link'}
                                 </div>
-                                <div className="text-black text-sm break-all hover:underline">
+                                <div className="text-black text-base break-all hover:underline">
                                   {item.url || 'No URL'}
                                 </div>
                               </div>
@@ -2660,7 +2660,7 @@ const MilanoteClone = () => {
                               onClick={(e) => e.stopPropagation()}
                             />
                           ) : (
-                            <h4 className="text-gray-800 font-medium text-base mb-3">{item.title}</h4>
+                            <h4 className="text-gray-800 font-medium text-lg mb-3">{item.title}</h4>
                           )}
                           <div className="space-y-2">
                             {item.tasks.map((task, index) => (
@@ -2847,7 +2847,7 @@ const MilanoteClone = () => {
                                     <div className="w-1 h-3 bg-black" />
                                     <div className="w-1 h-3 bg-black" />
                                   </div> : 
-                                  <div className="w-0 h-0 border-l-[6px] border-l-black border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent ml-1" />
+                                  <div className="w-0 h-0 border-l-[8px] border-l-black border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent ml-1" />
                                 }
                               </button>
                               
@@ -3801,7 +3801,7 @@ const MilanoteClone = () => {
                           <div className="w-0.5 h-2 bg-black" />
                           <div className="w-0.5 h-2 bg-black" />
                         </div> : 
-                        <div className="w-0 h-0 border-l-[4px] border-l-black border-t-[2.5px] border-t-transparent border-b-[2.5px] border-b-transparent ml-0.5" />
+                        <div className="w-0 h-0 border-l-[5px] border-l-black border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent ml-0.5" />
                       }
                     </button>
                     
@@ -3841,7 +3841,7 @@ const MilanoteClone = () => {
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm font-medium truncate">{media.title}</div>
+                    <div className="text-white text-base font-medium truncate">{media.title}</div>
                   </div>
                   
                   <span className="text-gray-500 text-xs flex-shrink-0">
