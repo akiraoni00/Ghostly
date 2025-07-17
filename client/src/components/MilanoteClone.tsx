@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Move, Network, MapPin, GitBranch } from 'lucide-react';
+import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Move, Network, MapPin, GitBranch, Volume2 } from 'lucide-react';
 
 // Custom Hand Icon Component - Standard hand/grab cursor icon
 const SharpHandIcon = ({ size = 16, className = "" }) => (
@@ -222,6 +222,16 @@ const MilanoteClone = () => {
       audioEl.currentTime = newTime;
       setMediaTimeline(prev => prev.map(item => 
         item.id === id ? { ...item, currentTime: newTime } : item
+      ));
+    }
+  }, [audioElements]);
+
+  const updateMediaVolume = useCallback((id, newVolume) => {
+    const audioEl = audioElements.get(id);
+    if (audioEl) {
+      audioEl.volume = newVolume;
+      setMediaTimeline(prev => prev.map(item => 
+        item.id === id ? { ...item, volume: newVolume } : item
       ));
     }
   }, [audioElements]);
@@ -1765,8 +1775,8 @@ const MilanoteClone = () => {
         type: 'audio',
         x: pendingImagePosition.x,
         y: pendingImagePosition.y,
-        width: 200,
-        height: 60,
+        width: 280,
+        height: 100,
         title: fileName,
         src: event.target.result
       };
@@ -2606,10 +2616,10 @@ const MilanoteClone = () => {
                                   }
                                 }}
                               >
-                                <div className="text-black font-medium text-sm break-words">
+                                <div className="text-black font-medium text-base break-words">
                                   {item.title || 'Untitled Link'}
                                 </div>
-                                <div className="text-blue-600 text-xs break-all hover:underline">
+                                <div className="text-black text-sm break-all hover:underline">
                                   {item.url || 'No URL'}
                                 </div>
                               </div>
@@ -2754,14 +2764,14 @@ const MilanoteClone = () => {
                     )}
 
                     {item.type === 'audio' && (
-                      <div className="w-full h-full bg-purple-50 rounded-lg shadow-xl border border-purple-200 p-3">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Music size={16} className="text-purple-600" />
+                      <div className="w-full h-full bg-purple-50 rounded-lg shadow-xl border border-purple-200 p-4">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <Music size={20} className="text-purple-600" />
                           {editingItem?.id === item.id ? (
                             <input
                               type="text"
                               defaultValue={item.title}
-                              className="text-purple-800 font-medium text-sm bg-transparent border-b border-purple-400 outline-none flex-1"
+                              className="text-purple-800 font-medium text-base bg-transparent border-b border-purple-400 outline-none flex-1"
                               onBlur={(e) => handleItemEdit(item, e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -2775,7 +2785,7 @@ const MilanoteClone = () => {
                               onClick={(e) => e.stopPropagation()}
                             />
                           ) : (
-                            <h4 className="text-purple-800 font-medium text-sm truncate flex-1">{item.title}</h4>
+                            <h4 className="text-purple-800 font-medium text-base truncate flex-1">{item.title}</h4>
                           )}
                         </div>
                         <audio controls className="w-full">
@@ -3685,23 +3695,45 @@ const MilanoteClone = () => {
                   </button>
                 </div>
                 
-                <div className="flex items-center space-x-2">
-                  <div className="bg-[#1a1a1a] rounded-full h-3 flex-1 overflow-hidden cursor-pointer"
-                       onClick={(e) => {
-                         const rect = e.currentTarget.getBoundingClientRect();
-                         const percentage = (e.clientX - rect.left) / rect.width;
-                         const newTime = percentage * media.duration;
-                         updateMediaTime(media.id, newTime);
-                       }}>
-                    <div 
-                      className="bg-[#f4c2c2] h-full transition-all duration-200"
-                      style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
-                    />
+                <div className="space-y-2">
+                  {/* Progress Bar */}
+                  <div className="flex items-center space-x-2">
+                    <div className="bg-[#1a1a1a] rounded-full h-3 flex-1 overflow-hidden cursor-pointer"
+                         onClick={(e) => {
+                           const rect = e.currentTarget.getBoundingClientRect();
+                           const percentage = (e.clientX - rect.left) / rect.width;
+                           const newTime = percentage * media.duration;
+                           updateMediaTime(media.id, newTime);
+                         }}>
+                      <div 
+                        className="bg-[#f4c2c2] h-full transition-all duration-200"
+                        style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-gray-400 text-xs flex-shrink-0 w-16 text-right">
+                      {Math.floor(media.currentTime / 60)}:{String(Math.floor(media.currentTime % 60)).padStart(2, '0')} / 
+                      {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, '0')}
+                    </span>
                   </div>
-                  <span className="text-gray-400 text-xs flex-shrink-0 w-16 text-right">
-                    {Math.floor(media.currentTime / 60)}:{String(Math.floor(media.currentTime % 60)).padStart(2, '0')} / 
-                    {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, '0')}
-                  </span>
+                  
+                  {/* Volume Control */}
+                  <div className="flex items-center space-x-2">
+                    <Volume2 size={14} className="text-gray-400 flex-shrink-0" />
+                    <div className="bg-[#1a1a1a] rounded-full h-2 flex-1 overflow-hidden cursor-pointer"
+                         onClick={(e) => {
+                           const rect = e.currentTarget.getBoundingClientRect();
+                           const percentage = (e.clientX - rect.left) / rect.width;
+                           updateMediaVolume(media.id, percentage);
+                         }}>
+                      <div 
+                        className="bg-[#f4c2c2] h-full transition-all duration-200"
+                        style={{ width: `${(media.volume || 1) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-gray-400 text-xs flex-shrink-0 w-8 text-right">
+                      {Math.round((media.volume || 1) * 100)}%
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
