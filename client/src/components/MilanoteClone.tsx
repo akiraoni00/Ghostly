@@ -135,19 +135,24 @@ const MilanoteClone = () => {
     }
     
     const results = [];
+    const seen = new Set(); // Track unique results
     const searchLower = query.toLowerCase();
     
     // Search through all boards
     Object.entries(boards).forEach(([boardId, board]) => {
       // Search board names
       if (board.name.toLowerCase().includes(searchLower)) {
-        results.push({
-          type: 'board',
-          boardId,
-          title: board.name,
-          boardName: board.name,
-          preview: `${board.items.length} items`
-        });
+        const key = `board-${boardId}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({
+            type: 'board',
+            boardId,
+            title: board.name,
+            boardName: board.name,
+            preview: `${board.items.length} items`
+          });
+        }
       }
       
       // Search board items
@@ -170,14 +175,18 @@ const MilanoteClone = () => {
         }
         
         if (matches) {
-          results.push({
-            type: item.type,
-            boardId,
-            title: item.name || item.title || item.type,
-            boardName: board.name,
-            preview,
-            itemId: item.id
-          });
+          const key = `item-${item.id}-${boardId}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            results.push({
+              type: item.type,
+              boardId,
+              title: item.name || item.title || item.type,
+              boardName: board.name,
+              preview,
+              itemId: item.id
+            });
+          }
         }
       });
     });
@@ -220,6 +229,23 @@ const MilanoteClone = () => {
       border: '#404040'
     };
   });
+  
+  // Apply color theme to CSS variables
+  const applyColorTheme = useCallback((themeColors) => {
+    const root = document.documentElement;
+    root.style.setProperty('--color-accent', themeColors.accent);
+    root.style.setProperty('--color-background', themeColors.background);
+    root.style.setProperty('--color-surface', themeColors.surface);
+    root.style.setProperty('--color-text', themeColors.text);
+    root.style.setProperty('--color-text-secondary', themeColors.textSecondary);
+    root.style.setProperty('--color-border', themeColors.border);
+  }, []);
+
+  // Apply colors on mount and whenever colors change
+  useEffect(() => {
+    applyColorTheme(colors);
+  }, [colors, applyColorTheme]);
+  
   const [editingShortcut, setEditingShortcut] = useState(null);
   const [editingColor, setEditingColor] = useState(null);
   
@@ -882,10 +908,11 @@ const MilanoteClone = () => {
           type: 'link',
           x: canvasX,
           y: canvasY,
-          width: 180,
-          height: 60,
+          width: 200,
+          height: 80,
           url: '',
-          title: ''
+          title: '',
+          color: '#f8fafc'
         };
         break;
       case 'todo':
@@ -2367,12 +2394,14 @@ const MilanoteClone = () => {
 
                     {item.type === 'link' && (
                       <div 
-                        className={`bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 cursor-pointer hover:bg-blue-100 transition-colors ${
-                          editingItem?.id === item.id ? 'border-[#f4c2c2] bg-blue-100' : ''
+                        className={`rounded-lg shadow-xl border p-3 cursor-pointer hover:opacity-90 transition-colors ${
+                          editingItem?.id === item.id ? 'border-[#f4c2c2]' : 'border-gray-300'
                         }`}
                         style={{
                           width: item.width || 200,
-                          height: item.height || 80
+                          height: item.height || 80,
+                          backgroundColor: item.color || '#f8fafc',
+                          borderColor: editingItem?.id === item.id ? '#f4c2c2' : (item.color ? item.color : '#e2e8f0')
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -3372,10 +3401,7 @@ const MilanoteClone = () => {
                         surface: '#2d2d2d',
                         text: '#ffffff',
                         textSecondary: '#a0a0a0',
-                        border: '#404040',
-                        noteDefault: '#f5f5dc',
-                        noteSelected: '#fff2cc',
-                        lineDefault: '#f4c2c2'
+                        border: '#404040'
                       };
                       setColors(defaultColors);
                       localStorage.setItem('ghostly-colors', JSON.stringify(defaultColors));
@@ -3494,49 +3520,83 @@ const MilanoteClone = () => {
         </div>
       )}
 
-      {/* Note Color Picker */}
+      {/* Advanced Color Picker */}
       {noteColorPicker.show && (
         <div
-          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-4 z-50"
+          className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl p-4 z-50 min-w-[300px]"
           style={{ left: noteColorPicker.x, top: noteColorPicker.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <h4 className="text-white font-medium mb-3">Change Color</h4>
-          <div className="grid grid-cols-6 gap-2">
-            {[
-              '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
-              '#ccffe6', '#ffccf2', '#d4ccff', '#fff4cc', '#ccffcc', '#ffcce6',
-              '#e6f2ff', '#f2ffcc', '#ffccdc', '#ccf2e6', '#e6ccf2', '#f2ccff'
-            ].map((color, index) => (
-              <button
-                key={index}
-                className="w-8 h-8 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors"
-                style={{ backgroundColor: color }}
-                onClick={() => {
-                  changeItemColor(noteColorPicker.itemId, color);
-                  setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
-                }}
-              />
-            ))}
+          <h4 className="text-white font-medium mb-3">Advanced Color Picker</h4>
+          
+          {/* Color Palette */}
+          <div className="mb-4">
+            <label className="text-white text-xs mb-2 block">Quick Colors</label>
+            <div className="grid grid-cols-8 gap-2">
+              {[
+                '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
+                '#ccffe6', '#ffccf2', '#d4ccff', '#fff4cc', '#ccffcc', '#ffcce6',
+                '#e6f2ff', '#f2ffcc', '#ffccdc', '#ccf2e6', '#e6ccf2', '#f2ccff',
+                '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b', '#eb4d4b',
+                '#6c5ce7', '#a29bfe', '#fd79a8', '#fdcb6e', '#e17055', '#00b894',
+                '#74b9ff', '#81ecec', '#fab1a0', '#00cec9'
+              ].map((color, index) => (
+                <button
+                  key={index}
+                  className="w-6 h-6 rounded-md border border-gray-600 hover:border-[#f4c2c2] transition-colors"
+                  style={{ backgroundColor: color }}
+                  onClick={() => {
+                    changeItemColor(noteColorPicker.itemId, color);
+                    setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+                  }}
+                />
+              ))}
+            </div>
           </div>
-          <div className="mt-4">
-            <label className="text-white text-sm">Custom Color:</label>
+          
+          {/* HTML5 Color Picker */}
+          <div className="mb-4">
+            <label className="text-white text-xs mb-2 block">Custom Color</label>
             <input
               type="color"
-              className="w-full h-8 mt-1 rounded border border-gray-600 bg-[#2d2d2d]"
+              className="w-full h-12 rounded border border-gray-600 bg-[#2d2d2d] cursor-pointer"
               onChange={(e) => {
                 changeItemColor(noteColorPicker.itemId, e.target.value);
-                // Don't close immediately, let user continue adjusting
               }}
               onBlur={() => {
-                // Close when user finishes with the color picker
                 setTimeout(() => {
                   setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
                 }, 100);
               }}
             />
           </div>
-          <div className="mt-3 flex justify-end">
+          
+          {/* Hex Input */}
+          <div className="mb-4">
+            <label className="text-white text-xs mb-2 block">Hex Color</label>
+            <input
+              type="text"
+              placeholder="#000000"
+              className="w-full bg-[#2d2d2d] text-white border border-gray-600 rounded px-3 py-2 text-sm"
+              onBlur={(e) => {
+                const hex = e.target.value;
+                if (hex.match(/^#[0-9A-F]{6}$/i)) {
+                  changeItemColor(noteColorPicker.itemId, hex);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const hex = e.target.value;
+                  if (hex.match(/^#[0-9A-F]{6}$/i)) {
+                    changeItemColor(noteColorPicker.itemId, hex);
+                    setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+                  }
+                }
+              }}
+            />
+          </div>
+          
+          <div className="flex justify-end gap-2">
             <button
               onClick={() => setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null })}
               className="px-3 py-1 text-gray-400 hover:text-white transition-colors text-sm"
