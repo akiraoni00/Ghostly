@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, MoreHorizontal, Edit3, Image, FileText, Minus, Square, MousePointer, StickyNote, Link2, CheckSquare, Undo2, Redo2, ZoomIn, ZoomOut, ChevronRight, Copy, Trash2, Tag, X, Maximize2, Minimize2, Settings, Upload, FilePlus, Music, Save, FolderOpen, Download, Star, Heart, Move, Network, MapPin, GitBranch } from 'lucide-react';
 
-// Custom Sharp Hand Icon Component
+// Custom Sharp Hand Icon Component - Clean minimalist hand/drag icon
 const SharpHandIcon = ({ size = 16, className = "" }) => (
   <svg
     width={size}
@@ -14,10 +14,7 @@ const SharpHandIcon = ({ size = 16, className = "" }) => (
     strokeLinejoin="round"
     className={className}
   >
-    <path d="M18 11V6a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v5" />
-    <path d="M14 10V4a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v6" />
-    <path d="M10 10.5V6a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v4.5" />
-    <path d="M18 11a2 2 0 1 1 0 4v6a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-6" />
+    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
   </svg>
 );
 
@@ -3360,58 +3357,7 @@ const MilanoteClone = () => {
                 </div>
               </div>
 
-              {/* Color Theme */}
-              <div>
-                <h4 className="text-white font-medium mb-3">Color Theme</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  {Object.entries(colors).map(([colorKey, colorValue]) => (
-                    <div key={colorKey} className="flex items-center justify-between bg-[#2d2d2d] rounded p-3">
-                      <span className="text-gray-300 text-sm capitalize">
-                        {colorKey === 'textSecondary' ? 'Text Secondary' : colorKey}
-                      </span>
-                      {editingColor === colorKey ? (
-                        <input
-                          type="color"
-                          value={colorValue}
-                          onChange={(e) => {
-                            const newColors = { ...colors, [colorKey]: e.target.value };
-                            setColors(newColors);
-                            localStorage.setItem('ghostly-colors', JSON.stringify(newColors));
-                          }}
-                          onBlur={() => setEditingColor(null)}
-                          className="w-12 h-8 rounded border-none cursor-pointer"
-                          autoFocus
-                        />
-                      ) : (
-                        <button
-                          onClick={() => setEditingColor(colorKey)}
-                          className="w-12 h-8 rounded border border-gray-600 hover:border-[#f4c2c2] transition-colors"
-                          style={{ backgroundColor: colorValue }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => {
-                      const defaultColors = {
-                        accent: '#f4c2c2',
-                        background: '#1a1a1a',
-                        surface: '#2d2d2d',
-                        text: '#ffffff',
-                        textSecondary: '#a0a0a0',
-                        border: '#404040'
-                      };
-                      setColors(defaultColors);
-                      localStorage.setItem('ghostly-colors', JSON.stringify(defaultColors));
-                    }}
-                    className="px-3 py-1 bg-[#2d2d2d] text-gray-400 rounded text-sm hover:text-white transition-colors"
-                  >
-                    Reset to Default
-                  </button>
-                </div>
-              </div>
+
             </div>
 
             {/* Close Button */}
@@ -3534,12 +3480,12 @@ const MilanoteClone = () => {
             <label className="text-white text-xs mb-2 block">Quick Colors</label>
             <div className="grid grid-cols-8 gap-2">
               {[
-                '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
+                '#ffffff', '#f5f5dc', '#fff2cc', '#ffe6cc', '#ffcccc', '#e6ccff', '#ccf2ff',
                 '#ccffe6', '#ffccf2', '#d4ccff', '#fff4cc', '#ccffcc', '#ffcce6',
                 '#e6f2ff', '#f2ffcc', '#ffccdc', '#ccf2e6', '#e6ccf2', '#f2ccff',
                 '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b', '#eb4d4b',
                 '#6c5ce7', '#a29bfe', '#fd79a8', '#fdcb6e', '#e17055', '#00b894',
-                '#74b9ff', '#81ecec', '#fab1a0', '#00cec9'
+                '#74b9ff', '#81ecec', '#fab1a0', '#00cec9', '#000000'
               ].map((color, index) => (
                 <button
                   key={index}
@@ -3554,46 +3500,95 @@ const MilanoteClone = () => {
             </div>
           </div>
           
-          {/* HTML5 Color Picker */}
+          {/* Advanced Color Picker */}
           <div className="mb-4">
-            <label className="text-white text-xs mb-2 block">Custom Color</label>
-            <input
-              type="color"
-              className="w-full h-12 rounded border border-gray-600 bg-[#2d2d2d] cursor-pointer"
-              onChange={(e) => {
-                changeItemColor(noteColorPicker.itemId, e.target.value);
-              }}
-              onBlur={() => {
-                setTimeout(() => {
-                  setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
-                }, 100);
-              }}
-            />
-          </div>
-          
-          {/* Hex Input */}
-          <div className="mb-4">
-            <label className="text-white text-xs mb-2 block">Hex Color</label>
-            <input
-              type="text"
-              placeholder="#000000"
-              className="w-full bg-[#2d2d2d] text-white border border-gray-600 rounded px-3 py-2 text-sm"
-              onBlur={(e) => {
-                const hex = e.target.value;
-                if (hex.match(/^#[0-9A-F]{6}$/i)) {
-                  changeItemColor(noteColorPicker.itemId, hex);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const hex = e.target.value;
-                  if (hex.match(/^#[0-9A-F]{6}$/i)) {
-                    changeItemColor(noteColorPicker.itemId, hex);
-                    setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
-                  }
-                }
-              }}
-            />
+            <label className="text-white text-xs mb-2 block">Advanced Color Picker</label>
+            <div className="space-y-3">
+              {/* Hue Slider */}
+              <div>
+                <label className="text-white text-xs mb-1 block">Hue</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="360"
+                  className="w-full h-2 bg-gradient-to-r from-red-500 via-yellow-500 via-green-500 via-cyan-500 via-blue-500 via-purple-500 to-red-500 rounded-lg appearance-none cursor-pointer"
+                  onChange={(e) => {
+                    const hue = e.target.value;
+                    const color = `hsl(${hue}, 70%, 50%)`;
+                    changeItemColor(noteColorPicker.itemId, color);
+                  }}
+                />
+              </div>
+              
+              {/* Saturation Slider */}
+              <div>
+                <label className="text-white text-xs mb-1 block">Saturation</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  className="w-full h-2 bg-gradient-to-r from-gray-500 to-blue-500 rounded-lg appearance-none cursor-pointer"
+                  onChange={(e) => {
+                    const saturation = e.target.value;
+                    const color = `hsl(200, ${saturation}%, 50%)`;
+                    changeItemColor(noteColorPicker.itemId, color);
+                  }}
+                />
+              </div>
+              
+              {/* Lightness Slider */}
+              <div>
+                <label className="text-white text-xs mb-1 block">Lightness</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  className="w-full h-2 bg-gradient-to-r from-black via-gray-500 to-white rounded-lg appearance-none cursor-pointer"
+                  onChange={(e) => {
+                    const lightness = e.target.value;
+                    const color = `hsl(200, 70%, ${lightness}%)`;
+                    changeItemColor(noteColorPicker.itemId, color);
+                  }}
+                />
+              </div>
+              
+              {/* HTML5 Color Picker */}
+              <div>
+                <label className="text-white text-xs mb-1 block">Color Picker</label>
+                <input
+                  type="color"
+                  className="w-full h-8 rounded border border-gray-600 bg-[#2d2d2d] cursor-pointer"
+                  onChange={(e) => {
+                    changeItemColor(noteColorPicker.itemId, e.target.value);
+                  }}
+                />
+              </div>
+              
+              {/* Hex Input */}
+              <div>
+                <label className="text-white text-xs mb-1 block">Hex Color</label>
+                <input
+                  type="text"
+                  placeholder="#000000"
+                  className="w-full bg-[#2d2d2d] text-white border border-gray-600 rounded px-3 py-2 text-sm"
+                  onBlur={(e) => {
+                    const hex = e.target.value;
+                    if (hex.match(/^#[0-9A-F]{6}$/i)) {
+                      changeItemColor(noteColorPicker.itemId, hex);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const hex = e.target.value;
+                      if (hex.match(/^#[0-9A-F]{6}$/i)) {
+                        changeItemColor(noteColorPicker.itemId, hex);
+                        setNoteColorPicker({ show: false, x: 0, y: 0, itemId: null });
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </div>
           
           <div className="flex justify-end gap-2">
