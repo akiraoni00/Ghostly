@@ -3017,10 +3017,13 @@ const MilanoteClone = () => {
                               linear-gradient(to bottom, transparent, black)`
                 }}
                 onMouseDown={(e) => {
-                  const handleMouseMove = (e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                  const colorArea = e.currentTarget;
+                  const initialRect = colorArea.getBoundingClientRect();
+                  
+                  const handleMouseMove = (moveEvent) => {
+                    const rect = colorArea.getBoundingClientRect();
+                    const x = moveEvent.clientX - rect.left;
+                    const y = moveEvent.clientY - rect.top;
                     const saturation = Math.max(0, Math.min(100, (x / rect.width) * 100));
                     const lightness = Math.max(0, Math.min(100, 100 - (y / rect.height) * 100));
                     setColorPickerSaturation(saturation);
@@ -3594,10 +3597,12 @@ const MilanoteClone = () => {
                             linear-gradient(to bottom, transparent, black)`
               }}
               onMouseDown={(e) => {
-                const handleMouseMove = (e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const y = e.clientY - rect.top;
+                const colorArea = e.currentTarget;
+                
+                const handleMouseMove = (moveEvent) => {
+                  const rect = colorArea.getBoundingClientRect();
+                  const x = moveEvent.clientX - rect.left;
+                  const y = moveEvent.clientY - rect.top;
                   const saturation = Math.max(0, Math.min(100, (x / rect.width) * 100));
                   const lightness = Math.max(0, Math.min(100, 100 - (y / rect.height) * 100));
                   setColorPickerSaturation(saturation);
