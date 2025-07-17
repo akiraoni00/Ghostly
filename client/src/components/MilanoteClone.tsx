@@ -2986,9 +2986,9 @@ const MilanoteClone = () => {
             <div className="mb-3">
               <div className="grid grid-cols-6 gap-2">
                 {[
-                  '#ffffff', '#f4c2c2', '#ffcccc', '#ffe6cc', '#ccffe6', '#ccf2ff',
-                  '#e6ccff', '#f2ccff', '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24',
-                  '#6c5ce7', '#74b9ff', '#00b894', '#fdcb6e', '#fd79a8', '#000000'
+                  '#ffffff', '#f8f9fa', '#e9ecef', '#dee2e6', '#ced4da', '#adb5bd',
+                  '#f4c2c2', '#ffcccc', '#ffe6cc', '#fff2cc', '#ccffe6', '#ccf2ff',
+                  '#e6ccff', '#f2ccff', '#ffeaa7', '#fab1a0', '#fd79a8', '#dda0dd'
                 ].map((color, index) => (
                   <button
                     key={index}
@@ -3011,23 +3011,29 @@ const MilanoteClone = () => {
             {/* Advanced Color Picker */}
             <div>
               {/* Main Color Area */}
-              <div className="relative w-full h-32 mb-2 rounded border border-gray-600 overflow-hidden"
+              <div className="relative w-full h-32 mb-2 rounded border border-gray-600 overflow-hidden cursor-crosshair"
                 style={{
-                  background: `linear-gradient(to right, white, hsl(${colorPickerHue}, 100%, 50%)), 
-                              linear-gradient(to bottom, transparent, black)`
+                  background: `
+                    linear-gradient(to bottom, transparent, black),
+                    linear-gradient(to right, white, hsl(${colorPickerHue}, 100%, 50%))`
                 }}
                 onMouseDown={(e) => {
-                  const colorArea = e.currentTarget;
-                  const initialRect = colorArea.getBoundingClientRect();
+                  e.preventDefault();
+                  e.stopPropagation();
                   
-                  const handleMouseMove = (moveEvent) => {
+                  const colorArea = e.currentTarget;
+                  
+                  const updateColor = (clientX, clientY) => {
                     const rect = colorArea.getBoundingClientRect();
-                    const x = moveEvent.clientX - rect.left;
-                    const y = moveEvent.clientY - rect.top;
-                    const saturation = Math.max(0, Math.min(100, (x / rect.width) * 100));
-                    const lightness = Math.max(0, Math.min(100, 100 - (y / rect.height) * 100));
+                    const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+                    const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+                    
+                    const saturation = (x / rect.width) * 100;
+                    const lightness = 100 - (y / rect.height) * 100;
+                    
                     setColorPickerSaturation(saturation);
                     setColorPickerLightness(lightness);
+                    
                     const color = `hsl(${colorPickerHue}, ${saturation}%, ${lightness}%)`;
                     if (colorPickerTag) {
                       setTags(prev => prev.map(t => 
@@ -3036,29 +3042,18 @@ const MilanoteClone = () => {
                     }
                   };
                   
+                  const handleMouseMove = (moveEvent) => {
+                    updateColor(moveEvent.clientX, moveEvent.clientY);
+                  };
+                  
                   const handleMouseUp = () => {
                     document.removeEventListener('mousemove', handleMouseMove);
                     document.removeEventListener('mouseup', handleMouseUp);
                   };
                   
-                  handleMouseMove(e);
+                  updateColor(e.clientX, e.clientY);
                   document.addEventListener('mousemove', handleMouseMove);
                   document.addEventListener('mouseup', handleMouseUp);
-                }}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const y = e.clientY - rect.top;
-                  const saturation = (x / rect.width) * 100;
-                  const lightness = 100 - (y / rect.height) * 100;
-                  setColorPickerSaturation(saturation);
-                  setColorPickerLightness(lightness);
-                  const color = `hsl(${colorPickerHue}, ${saturation}%, ${lightness}%)`;
-                  if (colorPickerTag) {
-                    setTags(prev => prev.map(t => 
-                      t.id === colorPickerTag.id ? { ...t, color } : t
-                    ));
-                  }
                 }}
               >
                 {/* Color Crosshair */}
@@ -3571,9 +3566,9 @@ const MilanoteClone = () => {
           <div className="mb-3">
             <div className="grid grid-cols-6 gap-2">
               {[
-                '#ffffff', '#f4c2c2', '#ffcccc', '#ffe6cc', '#ccffe6', '#ccf2ff',
-                '#e6ccff', '#f2ccff', '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24',
-                '#6c5ce7', '#74b9ff', '#00b894', '#fdcb6e', '#fd79a8', '#000000'
+                '#ffffff', '#f8f9fa', '#e9ecef', '#dee2e6', '#ced4da', '#adb5bd',
+                '#f4c2c2', '#ffcccc', '#ffe6cc', '#fff2cc', '#ccffe6', '#ccf2ff',
+                '#e6ccff', '#f2ccff', '#ffeaa7', '#fab1a0', '#fd79a8', '#dda0dd'
               ].map((color, index) => (
                 <button
                   key={index}
@@ -3591,24 +3586,35 @@ const MilanoteClone = () => {
           {/* Advanced Color Picker */}
           <div>
             {/* Main Color Area */}
-            <div className="relative w-full h-32 mb-2 rounded border border-gray-600 overflow-hidden"
+            <div className="relative w-full h-32 mb-2 rounded border border-gray-600 overflow-hidden cursor-crosshair"
               style={{
-                background: `linear-gradient(to right, white, hsl(${colorPickerHue}, 100%, 50%)), 
-                            linear-gradient(to bottom, transparent, black)`
+                background: `
+                  linear-gradient(to bottom, transparent, black),
+                  linear-gradient(to right, white, hsl(${colorPickerHue}, 100%, 50%))`
               }}
               onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
                 const colorArea = e.currentTarget;
                 
-                const handleMouseMove = (moveEvent) => {
+                const updateColor = (clientX, clientY) => {
                   const rect = colorArea.getBoundingClientRect();
-                  const x = moveEvent.clientX - rect.left;
-                  const y = moveEvent.clientY - rect.top;
-                  const saturation = Math.max(0, Math.min(100, (x / rect.width) * 100));
-                  const lightness = Math.max(0, Math.min(100, 100 - (y / rect.height) * 100));
+                  const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+                  const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+                  
+                  const saturation = (x / rect.width) * 100;
+                  const lightness = 100 - (y / rect.height) * 100;
+                  
                   setColorPickerSaturation(saturation);
                   setColorPickerLightness(lightness);
+                  
                   const color = `hsl(${colorPickerHue}, ${saturation}%, ${lightness}%)`;
                   changeItemColor(noteColorPicker.itemId, color);
+                };
+                
+                const handleMouseMove = (moveEvent) => {
+                  updateColor(moveEvent.clientX, moveEvent.clientY);
                 };
                 
                 const handleMouseUp = () => {
@@ -3616,20 +3622,9 @@ const MilanoteClone = () => {
                   document.removeEventListener('mouseup', handleMouseUp);
                 };
                 
-                handleMouseMove(e);
+                updateColor(e.clientX, e.clientY);
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
-              }}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                const saturation = (x / rect.width) * 100;
-                const lightness = 100 - (y / rect.height) * 100;
-                setColorPickerSaturation(saturation);
-                setColorPickerLightness(lightness);
-                const color = `hsl(${colorPickerHue}, ${saturation}%, ${lightness}%)`;
-                changeItemColor(noteColorPicker.itemId, color);
               }}
             >
               {/* Color Crosshair */}
