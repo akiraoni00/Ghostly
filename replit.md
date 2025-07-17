@@ -113,6 +113,22 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (January 2025)
 
+### Latest UI Improvements (January 2025)
+- **New Hand Tool Icon**: Replaced broken hand icon with clean, minimalist SVG that matches the app's design language
+- **Search Functionality**: Completely removed node graph and replaced with comprehensive search feature
+  - Accessible via Ctrl+Enter keyboard shortcut
+  - Searches through all boards, items, and content
+  - Clean, IDE-style search interface with instant results
+  - Double-click to navigate to boards directly
+- **Fixed Link Tool**: Complete overhaul of link editing functionality
+  - Fixed width calculation and resizing issues
+  - Proper dual-field editing (title and URL)
+  - Enhanced visual feedback during editing
+  - Smooth tab navigation between title and URL fields
+  - Proper color highlighting during edit mode
+
+## Recent Changes (January 2025)
+
 ### Major Feature Addition: Obsidian Integration
 - **Text Files**: Added full-featured text file creation and editing with Markdown support
 - **Node Graph**: Implemented interactive node graph showing document connections via shared tags

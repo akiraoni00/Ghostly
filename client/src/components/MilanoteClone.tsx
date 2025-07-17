@@ -14,32 +14,28 @@ const SharpHandIcon = ({ size = 16, className = "" }) => (
     strokeLinejoin="round"
     className={className}
   >
-    <path d="M8 13V9a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v4" />
-    <path d="M12 13V7a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v6" />
-    <path d="M16 13v4a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-4" />
-    <path d="M6 13h10" />
+    <path d="M18 11V6a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v5" />
+    <path d="M14 10V4a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v6" />
+    <path d="M10 10.5V6a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v4.5" />
+    <path d="M18 11a2 2 0 1 1 0 4v6a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-6" />
   </svg>
 );
 
-// Custom Node Graph Icon Component
-const NodeGraphIcon = ({ size = 16, className = "" }) => (
+// Custom Search Icon Component
+const SearchIcon = ({ size = 16, className = "" }) => (
   <svg
     width={size}
     height={size}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.5"
+    strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
   >
-    <circle cx="12" cy="6" r="3" />
-    <circle cx="6" cy="18" r="3" />
-    <circle cx="18" cy="18" r="3" />
-    <path d="M12 9v3" />
-    <path d="M12 12l-3 3" />
-    <path d="M12 12l3 3" />
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.35-4.35" />
   </svg>
 );
 
@@ -127,12 +123,68 @@ const MilanoteClone = () => {
   const [colorPickerTag, setColorPickerTag] = useState(null);
   const [showTagNameInput, setShowTagNameInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [showNodeManager, setShowNodeManager] = useState(false);
-  const [nodeManagerZoom, setNodeManagerZoom] = useState(1);
-  const [nodeManagerPan, setNodeManagerPan] = useState({ x: 0, y: 0 });
-  const [isNodeManagerPanning, setIsNodeManagerPanning] = useState(false);
-  const [nodeManagerPanStart, setNodeManagerPanStart] = useState({ x: 0, y: 0 });
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   
+  // Search functionality
+  const performSearch = useCallback((query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    const results = [];
+    const searchLower = query.toLowerCase();
+    
+    // Search through all boards
+    Object.entries(boards).forEach(([boardId, board]) => {
+      // Search board names
+      if (board.name.toLowerCase().includes(searchLower)) {
+        results.push({
+          type: 'board',
+          boardId,
+          title: board.name,
+          boardName: board.name,
+          preview: `${board.items.length} items`
+        });
+      }
+      
+      // Search board items
+      board.items.forEach(item => {
+        let matches = false;
+        let preview = '';
+        
+        if (item.name && item.name.toLowerCase().includes(searchLower)) {
+          matches = true;
+          preview = item.name;
+        } else if (item.content && item.content.toLowerCase().includes(searchLower)) {
+          matches = true;
+          preview = item.content.substring(0, 100) + '...';
+        } else if (item.title && item.title.toLowerCase().includes(searchLower)) {
+          matches = true;
+          preview = item.title;
+        } else if (item.url && item.url.toLowerCase().includes(searchLower)) {
+          matches = true;
+          preview = item.url;
+        }
+        
+        if (matches) {
+          results.push({
+            type: item.type,
+            boardId,
+            title: item.name || item.title || item.type,
+            boardName: board.name,
+            preview,
+            itemId: item.id
+          });
+        }
+      });
+    });
+    
+    setSearchResults(results);
+  }, [boards]);
+
   // Settings and theme state
   const [showSettings, setShowSettings] = useState(false);
   const [shortcuts, setShortcuts] = useState(() => {
@@ -433,6 +485,13 @@ const MilanoteClone = () => {
   // Keyboard shortcuts handler
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Handle Ctrl+Enter for search
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        setShowSearch(true);
+        return;
+      }
+      
       if (e.ctrlKey || e.metaKey || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       
       const key = e.key.toLowerCase();
@@ -1902,13 +1961,13 @@ const MilanoteClone = () => {
             <FolderOpen size={20} />
           </button>
           
-          {/* Node Manager */}
+          {/* Search */}
           <button
-            onClick={() => setShowNodeManager(true)}
+            onClick={() => setShowSearch(true)}
             className="p-3 text-gray-400 hover:text-white transition-colors"
-            title="Node Graph"
+            title="Search (Ctrl+Enter)"
           >
-            <NodeGraphIcon size={20} />
+            <SearchIcon size={20} />
           </button>
           
           {/* Zoom Controls */}
@@ -2308,12 +2367,12 @@ const MilanoteClone = () => {
 
                     {item.type === 'link' && (
                       <div 
-                        className="bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 cursor-pointer hover:bg-blue-100 transition-colors"
+                        className={`bg-blue-50 rounded-lg shadow-xl border border-blue-200 p-3 cursor-pointer hover:bg-blue-100 transition-colors ${
+                          editingItem?.id === item.id ? 'border-[#f4c2c2] bg-blue-100' : ''
+                        }`}
                         style={{
-                          minWidth: '180px',
-                          minHeight: '60px',
-                          width: Math.max(180, Math.min(400, ((item.title || 'Untitled Link').length * 8) + 60)),
-                          height: 'auto'
+                          width: item.width || 200,
+                          height: item.height || 80
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -2322,57 +2381,52 @@ const MilanoteClone = () => {
                           }
                         }}
                       >
-                        <div className="flex items-start space-x-2">
+                        <div className="flex items-start space-x-2 h-full">
                           <Link2 size={16} className="text-blue-600 mt-1 flex-shrink-0" />
-                          <div className="flex-1 space-y-1">
+                          <div className="flex-1 space-y-1 h-full">
                             {editingItem?.id === item.id ? (
-                              <>
+                              <div className="h-full flex flex-col space-y-2">
                                 <input
                                   type="text"
                                   defaultValue={item.title || ''}
                                   onBlur={(e) => {
+                                    const newTitle = e.target.value;
                                     setBoards(prev => ({
                                       ...prev,
                                       [currentBoard]: {
                                         ...prev[currentBoard],
                                         items: prev[currentBoard].items.map(i =>
-                                          i.id === item.id ? { ...i, title: e.target.value } : i
+                                          i.id === item.id ? { ...i, title: newTitle } : i
                                         )
                                       }
                                     }));
-                                    setEditingItem(null);
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
-                                      setBoards(prev => ({
-                                        ...prev,
-                                        [currentBoard]: {
-                                          ...prev[currentBoard],
-                                          items: prev[currentBoard].items.map(i =>
-                                            i.id === item.id ? { ...i, title: e.target.value } : i
-                                          )
-                                        }
-                                      }));
-                                      setEditingItem(null);
+                                      e.target.blur();
+                                      // Focus on URL input
+                                      const urlInput = e.target.parentElement.querySelector('input[type="url"]');
+                                      if (urlInput) urlInput.focus();
                                     } else if (e.key === 'Escape') {
                                       setEditingItem(null);
                                     }
                                   }}
-                                  className="w-full text-gray-800 font-medium text-sm bg-transparent border-b border-gray-400 outline-none pr-2"
+                                  className="w-full text-gray-800 font-medium text-sm bg-transparent border-b border-gray-400 outline-none"
                                   placeholder="Link title"
                                   autoFocus
                                   onClick={(e) => e.stopPropagation()}
                                 />
                                 <input
-                                  type="text"
+                                  type="url"
                                   defaultValue={item.url || ''}
                                   onBlur={(e) => {
+                                    const newUrl = e.target.value;
                                     setBoards(prev => ({
                                       ...prev,
                                       [currentBoard]: {
                                         ...prev[currentBoard],
                                         items: prev[currentBoard].items.map(i =>
-                                          i.id === item.id ? { ...i, url: e.target.value } : i
+                                          i.id === item.id ? { ...i, url: newUrl } : i
                                         )
                                       }
                                     }));
@@ -2380,15 +2434,7 @@ const MilanoteClone = () => {
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
-                                      setBoards(prev => ({
-                                        ...prev,
-                                        [currentBoard]: {
-                                          ...prev[currentBoard],
-                                          items: prev[currentBoard].items.map(i =>
-                                            i.id === item.id ? { ...i, url: e.target.value } : i
-                                          )
-                                        }
-                                      }));
+                                      e.target.blur();
                                       setEditingItem(null);
                                     } else if (e.key === 'Escape') {
                                       setEditingItem(null);
@@ -2398,7 +2444,7 @@ const MilanoteClone = () => {
                                   placeholder="https://example.com"
                                   onClick={(e) => e.stopPropagation()}
                                 />
-                              </>
+                              </div>
                             ) : (
                               <>
                                 <div className="text-gray-800 font-medium text-sm break-words">
@@ -3359,183 +3405,90 @@ const MilanoteClone = () => {
         </div>
       )}
 
-      {/* Node Manager Modal */}
-      {showNodeManager && (
+      {/* Search Modal */}
+      {showSearch && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center">
-          <div className="bg-black border border-[#f4c2c2] rounded-lg w-[95vw] h-[95vh] flex flex-col">
-            {/* Minimal Header */}
+          <div className="bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg w-[600px] max-h-[70vh] flex flex-col">
+            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[#f4c2c2]/30">
-              <h3 className="text-[#f4c2c2] text-xl font-light">Network</h3>
+              <h3 className="text-[#f4c2c2] text-xl font-light">Search</h3>
               <button
-                onClick={() => setShowNodeManager(false)}
+                onClick={() => {
+                  setShowSearch(false);
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}
                 className="text-[#f4c2c2] hover:text-white transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
             
-            {/* Node Canvas */}
-            <div 
-              className="flex-1 relative overflow-hidden cursor-crosshair"
-              onMouseDown={(e) => {
-                if (e.ctrlKey || e.metaKey) {
-                  e.preventDefault();
-                  const delta = e.shiftKey ? 0.8 : 1.2;
-                  setNodeManagerZoom(Math.min(Math.max(nodeManagerZoom * delta, 0.3), 3));
-                  return;
-                }
-                setIsNodeManagerPanning(true);
-                setNodeManagerPanStart({ x: e.clientX - nodeManagerPan.x, y: e.clientY - nodeManagerPan.y });
-              }}
-              onMouseMove={(e) => {
-                if (isNodeManagerPanning) {
-                  setNodeManagerPan({
-                    x: e.clientX - nodeManagerPanStart.x,
-                    y: e.clientY - nodeManagerPanStart.y
-                  });
-                }
-              }}
-              onMouseUp={() => setIsNodeManagerPanning(false)}
-              onWheel={(e) => {
-                e.preventDefault();
-                const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                setNodeManagerZoom(Math.min(Math.max(nodeManagerZoom * delta, 0.3), 3));
-              }}
-            >
-              <div 
-                className="absolute inset-0"
-                style={{
-                  transform: `translate(${nodeManagerPan.x}px, ${nodeManagerPan.y}px) scale(${nodeManagerZoom})`,
-                  transformOrigin: '0 0'
+            {/* Search Input */}
+            <div className="p-4 border-b border-[#f4c2c2]/30">
+              <input
+                type="text"
+                placeholder="Search boards, items, and content..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  performSearch(e.target.value);
                 }}
-              >
-                {/* Metro Evolution Network */}
-                <svg className="w-full h-full" style={{ minWidth: '100%', minHeight: '100%' }}>
-                  <rect width="100%" height="100%" fill="#000000" />
-                  
-                  <defs>
-                    {/* Gradient definitions for different connection types */}
-                    <linearGradient id="mainLine" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#f4c2c2" stopOpacity="1"/>
-                      <stop offset="50%" stopColor="#f4c2c2" stopOpacity="0.8"/>
-                      <stop offset="100%" stopColor="#f4c2c2" stopOpacity="0.6"/>
-                    </linearGradient>
-                  </defs>
-                  
-                  {(() => {
-                    const centerX = 500;
-                    const centerY = 400;
-                    const boardEntries = Object.entries(boards).filter(([id]) => id !== 'home');
-                    
-                    // Create fractal tree structure
-                    const createTreeLayout = (boards, startX, startY, level = 0, parentAngle = 0) => {
-                      const nodes = [];
-                      const connections = [];
-                      
-                      if (boards.length === 0) return { nodes, connections };
-                      
-                      const angleStep = (Math.PI * 2) / Math.max(boards.length, 3);
-                      const radius = 100 + (level * 80);
-                      
-                      boards.forEach((board, index) => {
-                        const angle = parentAngle + (index - boards.length / 2) * angleStep * 0.7;
-                        const x = startX + Math.cos(angle) * radius;
-                        const y = startY + Math.sin(angle) * radius;
-                        
-                        // Create curved metro-style connection
-                        const controlPoint1X = startX + Math.cos(angle) * (radius * 0.3);
-                        const controlPoint1Y = startY + Math.sin(angle) * (radius * 0.3);
-                        const controlPoint2X = startX + Math.cos(angle) * (radius * 0.7);
-                        const controlPoint2Y = startY + Math.sin(angle) * (radius * 0.7);
-                        
-                        connections.push(
-                          <path
-                            key={`connection-${board[0]}`}
-                            d={`M ${startX} ${startY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${x} ${y}`}
-                            stroke="url(#mainLine)"
-                            strokeWidth="8"
-                            fill="none"
-                            strokeLinecap="round"
-                          />
-                        );
-                        
-                        nodes.push({
-                          id: board[0],
-                          name: board[1].name,
-                          x,
-                          y,
-                          level
-                        });
-                      });
-                      
-                      return { nodes, connections };
-                    };
-                    
-                    const { nodes, connections } = createTreeLayout(boardEntries, centerX, centerY);
-                    
-                    return (
-                      <g>
-                        {/* Render connections first */}
-                        {connections}
-                        
-                        {/* Central home node */}
-                        <circle
-                          cx={centerX}
-                          cy={centerY}
-                          r="18"
-                          fill="#f4c2c2"
-                          className="cursor-pointer hover:r-20 transition-all"
-                          onDoubleClick={() => {
-                            setCurrentBoard('home');
-                            setShowNodeManager(false);
-                          }}
-                        />
-                        <text
-                          x={centerX}
-                          y={centerY + 40}
-                          textAnchor="middle"
-                          fill="#f4c2c2"
-                          fontSize="14"
-                          fontWeight="300"
-                          className="cursor-pointer select-none"
-                        >
-                          {boards.home?.name || 'Origin'}
-                        </text>
-                        
-                        {/* Board nodes */}
-                        {nodes.map(node => (
-                          <g key={node.id}>
-                            <circle
-                              cx={node.x}
-                              cy={node.y}
-                              r="12"
-                              fill="#f4c2c2"
-                              fillOpacity="0.8"
-                              className="cursor-pointer hover:fill-opacity-100 transition-all"
-                              onDoubleClick={() => {
-                                setCurrentBoard(node.id);
-                                setShowNodeManager(false);
-                              }}
-                            />
-                            <text
-                              x={node.x}
-                              y={node.y + 30}
-                              textAnchor="middle"
-                              fill="#f4c2c2"
-                              fontSize="12"
-                              fontWeight="300"
-                              className="cursor-pointer select-none"
-                              fillOpacity="0.8"
-                            >
-                              {node.name}
-                            </text>
-                          </g>
-                        ))}
-                      </g>
-                    );
-                  })()}
-                </svg>
-              </div>
+                className="w-full bg-[#2d2d2d] text-white border border-[#f4c2c2]/50 rounded-lg px-4 py-2 outline-none focus:border-[#f4c2c2] transition-colors"
+                autoFocus
+              />
+            </div>
+            
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {searchResults.length === 0 && searchQuery && (
+                <div className="text-gray-400 text-center py-8">
+                  No results found for "{searchQuery}"
+                </div>
+              )}
+              
+              {searchResults.length === 0 && !searchQuery && (
+                <div className="text-gray-400 text-center py-8">
+                  Start typing to search through your boards and content
+                </div>
+              )}
+              
+              {searchResults.map((result, index) => (
+                <div
+                  key={index}
+                  className="bg-[#2d2d2d] rounded-lg p-3 hover:bg-[#3d3d3d] transition-colors cursor-pointer"
+                  onDoubleClick={() => {
+                    if (result.type === 'board') {
+                      setCurrentBoard(result.boardId);
+                      setShowSearch(false);
+                      setSearchQuery('');
+                      setSearchResults([]);
+                    }
+                  }}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="text-[#f4c2c2]">
+                      {result.type === 'board' && <Square size={16} />}
+                      {result.type === 'note' && <StickyNote size={16} />}
+                      {result.type === 'textfile' && <FileText size={16} />}
+                      {result.type === 'image' && <Image size={16} />}
+                      {result.type === 'link' && <Link2 size={16} />}
+                      {result.type === 'todo' && <CheckSquare size={16} />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-white font-medium">{result.title}</div>
+                      <div className="text-gray-400 text-sm">
+                        {result.type === 'board' ? 'Board' : `${result.type} in ${result.boardName}`}
+                      </div>
+                      {result.preview && (
+                        <div className="text-gray-500 text-sm mt-1 truncate">
+                          {result.preview}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
