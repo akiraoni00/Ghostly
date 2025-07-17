@@ -2071,7 +2071,7 @@ const MilanoteClone = () => {
               <React.Fragment key={boardId}>
                 <button
                   onClick={() => navigateToBoard(boardId, index)}
-                  className={`text-sm px-2 py-1 rounded transition-colors ${
+                  className={`text-lg px-3 py-2 rounded transition-colors ${
                     boardId === currentBoard
                       ? 'text-white bg-[#2d2d2d]'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -2520,7 +2520,7 @@ const MilanoteClone = () => {
                           editingItem?.id === item.id ? 'border-[#f4c2c2]' : 'border-gray-300'
                         }`}
                         style={{
-                          width: Math.max(250, Math.min(600, (item.url?.length || 0) * 8 + 200)),
+                          width: Math.max(200, Math.min(500, (item.url?.length || 0) * 6 + 150)),
                           height: item.height || (getVideoEmbedUrl(item.url) ? 180 : 80),
                           backgroundColor: item.color || '#f8fafc',
                           borderColor: editingItem?.id === item.id ? '#f4c2c2' : (item.color ? item.color : '#e2e8f0')
@@ -3786,7 +3786,25 @@ const MilanoteClone = () => {
 
       {/* Minimal Audio Manager - Top Right */}
       {mediaTimeline.length > 0 && (
-        <div className="fixed top-16 right-4 bg-[#0d0d0d] border border-[#333] rounded-lg p-2 z-40 w-72 max-h-80 overflow-y-auto backdrop-blur-sm bg-opacity-95">
+        <div className="fixed top-16 right-4 bg-[#0d0d0d] border border-[#333] rounded-lg p-3 z-40 w-80 max-h-80 overflow-y-auto backdrop-blur-sm bg-opacity-95">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-white text-base font-medium">Audio Timeline</h3>
+            <button
+              onClick={() => {
+                // Stop all audio and clear timeline
+                mediaTimeline.forEach(media => {
+                  if (media.audioElement) {
+                    media.audioElement.pause();
+                    media.audioElement.currentTime = 0;
+                  }
+                });
+                setMediaTimeline([]);
+              }}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
           <div className="space-y-1">
             {mediaTimeline.map(media => (
               <div key={media.id} className="bg-[#1a1a1a] rounded-md p-2 hover:bg-[#222] transition-colors">
@@ -3841,7 +3859,7 @@ const MilanoteClone = () => {
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-base font-medium truncate">{media.title}</div>
+                    <div className="text-white text-lg font-medium truncate">{media.title}</div>
                   </div>
                   
                   <span className="text-gray-500 text-xs flex-shrink-0">
@@ -3849,10 +3867,17 @@ const MilanoteClone = () => {
                   </span>
                   
                   <button
-                    onClick={() => removeFromMediaTimeline(media.id)}
+                    onClick={() => {
+                      // Stop this audio and remove from timeline
+                      if (media.audioElement) {
+                        media.audioElement.pause();
+                        media.audioElement.currentTime = 0;
+                      }
+                      removeFromMediaTimeline(media.id);
+                    }}
                     className="w-4 h-4 text-gray-500 hover:text-white transition-colors flex-shrink-0"
                   >
-                    <X size={12} />
+                    <X size={14} />
                   </button>
                 </div>
                 
