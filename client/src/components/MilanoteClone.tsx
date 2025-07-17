@@ -1188,6 +1188,11 @@ const MilanoteClone = () => {
 
   // Handle canvas click
   const handleCanvasClick = useCallback((e) => {
+    // Exit editing mode when clicking on canvas
+    if (editingItem) {
+      setEditingItem(null);
+    }
+    
     if (selectedTool === 'select') return;
     if (selectedTool === 'tag') {
       // Don't handle in canvas click - tag tool opens immediately
@@ -2764,14 +2769,14 @@ const MilanoteClone = () => {
                     )}
 
                     {item.type === 'audio' && (
-                      <div className="w-full h-full bg-purple-50 rounded-lg shadow-xl border border-purple-200 p-4">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <Music size={20} className="text-purple-600" />
+                      <div className="w-full h-full bg-[#1a1a1a] rounded-lg border border-[#333] p-3">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <div className="w-2 h-2 rounded-full bg-[#f4c2c2]" />
                           {editingItem?.id === item.id ? (
                             <input
                               type="text"
                               defaultValue={item.title}
-                              className="text-purple-800 font-medium text-base bg-transparent border-b border-purple-400 outline-none flex-1"
+                              className="text-white font-medium text-sm bg-transparent border-b border-[#f4c2c2] outline-none flex-1"
                               onBlur={(e) => handleItemEdit(item, e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -2785,15 +2790,81 @@ const MilanoteClone = () => {
                               onClick={(e) => e.stopPropagation()}
                             />
                           ) : (
-                            <h4 className="text-purple-800 font-medium text-base truncate flex-1">{item.title}</h4>
+                            <h4 className="text-white font-medium text-sm truncate flex-1">{item.title}</h4>
                           )}
                         </div>
-                        <audio controls className="w-full">
-                          <source src={item.src} type="audio/mpeg" />
-                          <source src={item.src} type="audio/wav" />
-                          <source src={item.src} type="audio/ogg" />
-                          Your browser does not support the audio element.
-                        </audio>
+                        {(() => {
+                          // Create audio element and add to timeline if not exists
+                          if (!audioElements.has(item.id)) {
+                            const audioEl = document.createElement('audio');
+                            audioEl.src = item.src;
+                            audioEl.loop = false;
+                            audioEl.volume = 1;
+                            
+                            // Load metadata to get duration
+                            audioEl.addEventListener('loadedmetadata', () => {
+                              addToMediaTimeline(item.id, item.title, 'audio', audioEl.duration, item.src);
+                            });
+                            
+                            // Update current time
+                            audioEl.addEventListener('timeupdate', () => {
+                              setMediaTimeline(prev => prev.map(media => 
+                                media.id === item.id ? { ...media, currentTime: audioEl.currentTime } : media
+                              ));
+                            });
+                            
+                            // Handle play/pause
+                            audioEl.addEventListener('play', () => {
+                              setMediaTimeline(prev => prev.map(media => 
+                                media.id === item.id ? { ...media, isPlaying: true } : media
+                              ));
+                            });
+                            
+                            audioEl.addEventListener('pause', () => {
+                              setMediaTimeline(prev => prev.map(media => 
+                                media.id === item.id ? { ...media, isPlaying: false } : media
+                              ));
+                            });
+                            
+                            setAudioElements(prev => new Map(prev).set(item.id, audioEl));
+                          }
+                          
+                          return null;
+                        })()}
+                        
+                        <div className="bg-[#0d0d0d] rounded-lg p-2">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMediaPlayback(item.id);
+                              }}
+                              className="w-6 h-6 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors"
+                            >
+                              {mediaTimeline.find(m => m.id === item.id)?.isPlaying ? 
+                                <div className="w-2 h-2 bg-black rounded-sm" /> : 
+                                <div className="w-0 h-0 border-l-[4px] border-l-black border-t-[2px] border-t-transparent border-b-[2px] border-b-transparent ml-0.5" />
+                              }
+                            </button>
+                            <div className="flex-1 h-1 bg-[#333] rounded-full overflow-hidden">
+                              {(() => {
+                                const media = mediaTimeline.find(m => m.id === item.id);
+                                return media ? (
+                                  <div 
+                                    className="h-full bg-[#f4c2c2] transition-all duration-100"
+                                    style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
+                                  />
+                                ) : null;
+                              })()}
+                            </div>
+                            <span className="text-gray-400 text-xs">
+                              {(() => {
+                                const media = mediaTimeline.find(m => m.id === item.id);
+                                return media ? `${Math.floor(media.currentTime / 60)}:${String(Math.floor(media.currentTime % 60)).padStart(2, '0')}` : '0:00';
+                              })()}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3668,72 +3739,53 @@ const MilanoteClone = () => {
         </div>
       )}
 
-      {/* Media Player - Top Right */}
+      {/* Minimal Audio Manager - Top Right */}
       {mediaTimeline.length > 0 && (
-        <div className="fixed top-16 right-4 bg-[#1a1a1a] border border-[#f4c2c2] rounded-lg p-4 z-40 w-80 max-h-96 overflow-y-auto">
-          <h4 className="text-[#f4c2c2] text-sm font-medium mb-3">Media Player</h4>
-          <div className="space-y-3">
+        <div className="fixed top-16 right-4 bg-[#0d0d0d] border border-[#333] rounded-lg p-2 z-40 w-72 max-h-80 overflow-y-auto backdrop-blur-sm bg-opacity-95">
+          <div className="space-y-1">
             {mediaTimeline.map(media => (
-              <div key={media.id} className="bg-[#2d2d2d] rounded-lg p-3">
-                <div className="flex items-center space-x-3 mb-2">
+              <div key={media.id} className="bg-[#1a1a1a] rounded-md p-2 hover:bg-[#222] transition-colors">
+                <div className="flex items-center space-x-2 mb-1">
                   <button
                     onClick={() => toggleMediaPlayback(media.id)}
-                    className="w-8 h-8 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors flex-shrink-0"
+                    className="w-5 h-5 rounded-full bg-[#f4c2c2] text-black flex items-center justify-center hover:bg-[#f0b8b8] transition-colors flex-shrink-0"
                   >
-                    {media.isPlaying ? <Minus size={14} /> : <div className="w-0 h-0 border-l-[5px] border-l-black border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent ml-0.5" />}
+                    {media.isPlaying ? 
+                      <div className="w-1.5 h-1.5 bg-black rounded-sm" /> : 
+                      <div className="w-0 h-0 border-l-[3px] border-l-black border-t-[1.5px] border-t-transparent border-b-[1.5px] border-b-transparent ml-0.5" />
+                    }
                   </button>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm font-medium truncate">{media.title}</div>
+                    <div className="text-white text-xs font-medium truncate">{media.title}</div>
                   </div>
+                  
+                  <span className="text-gray-500 text-xs flex-shrink-0">
+                    {Math.floor(media.currentTime / 60)}:{String(Math.floor(media.currentTime % 60)).padStart(2, '0')}
+                  </span>
                   
                   <button
                     onClick={() => removeFromMediaTimeline(media.id)}
-                    className="w-6 h-6 text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                    className="w-4 h-4 text-gray-500 hover:text-white transition-colors flex-shrink-0"
                   >
-                    <X size={16} />
+                    <X size={12} />
                   </button>
                 </div>
                 
-                <div className="space-y-2">
-                  {/* Progress Bar */}
-                  <div className="flex items-center space-x-2">
-                    <div className="bg-[#1a1a1a] rounded-full h-3 flex-1 overflow-hidden cursor-pointer"
-                         onClick={(e) => {
-                           const rect = e.currentTarget.getBoundingClientRect();
-                           const percentage = (e.clientX - rect.left) / rect.width;
-                           const newTime = percentage * media.duration;
-                           updateMediaTime(media.id, newTime);
-                         }}>
-                      <div 
-                        className="bg-[#f4c2c2] h-full transition-all duration-200"
-                        style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-gray-400 text-xs flex-shrink-0 w-16 text-right">
-                      {Math.floor(media.currentTime / 60)}:{String(Math.floor(media.currentTime % 60)).padStart(2, '0')} / 
-                      {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, '0')}
-                    </span>
-                  </div>
-                  
-                  {/* Volume Control */}
-                  <div className="flex items-center space-x-2">
-                    <Volume2 size={14} className="text-gray-400 flex-shrink-0" />
-                    <div className="bg-[#1a1a1a] rounded-full h-2 flex-1 overflow-hidden cursor-pointer"
-                         onClick={(e) => {
-                           const rect = e.currentTarget.getBoundingClientRect();
-                           const percentage = (e.clientX - rect.left) / rect.width;
-                           updateMediaVolume(media.id, percentage);
-                         }}>
-                      <div 
-                        className="bg-[#f4c2c2] h-full transition-all duration-200"
-                        style={{ width: `${(media.volume || 1) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-gray-400 text-xs flex-shrink-0 w-8 text-right">
-                      {Math.round((media.volume || 1) * 100)}%
-                    </span>
-                  </div>
+                {/* Minimal Progress Bar */}
+                <div 
+                  className="bg-[#333] rounded-full h-1 overflow-hidden cursor-pointer"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percentage = (e.clientX - rect.left) / rect.width;
+                    const newTime = percentage * media.duration;
+                    updateMediaTime(media.id, newTime);
+                  }}
+                >
+                  <div 
+                    className="bg-[#f4c2c2] h-full transition-all duration-100"
+                    style={{ width: `${(media.currentTime / media.duration) * 100}%` }}
+                  />
                 </div>
               </div>
             ))}
